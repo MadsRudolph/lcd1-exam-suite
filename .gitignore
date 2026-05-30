@@ -1,0 +1,17 @@
+# Node / Electron
+node_modules/
+bundle.js
+dist/
+*-win32-x64/
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Tooling caches
+.pytest_cache/
+.DS_Store
+Thumbs.db
+*.log
