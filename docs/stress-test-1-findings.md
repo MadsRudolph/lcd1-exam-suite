@@ -120,3 +120,5 @@ not just the CLI.
    doesn't.
 3. Consider a clarifying label/warning when `k-for-spec` vs `closed-loop` are
    given the same string (finding 2).
+- Added in-app transfer-function plots (step/Bode/Nyquist/pole-zero), annotated,
+  computed in the JS engine — see docs/superpowers/specs/2026-05-31-transfer-function-plots-design.md.

@@ -104,3 +104,16 @@ test("buildPlotData returns all four datasets plus annotations", () => {
   assert.ok(pd.poleZero.poles.length === 2, "pole-zero");
   assert.ok(pd.annotations.step.overshootPct > 30, "annotations");
 });
+
+test("Nyquist verdict matches the known Q10 plant (type-1, 3-pole)", () => {
+  const tf = parseTf("10/(s*(s+1)*(s+2))");
+  const pd = buildPlotData(tf);
+  // closed loop 1+L has RHP roots -> unstable at unity gain (GM<1 for this plant)
+  assert.equal(pd.annotations.nyquist.stable, false);
+});
+
+test("step final value equals DC gain for the Q12 closed loop", () => {
+  const tf = parseTf("11.4461/(s**2+4*s+11.4461)");
+  const pd = buildPlotData(tf);
+  assert.ok(Math.abs(pd.step.y[pd.step.y.length - 1] - 1) < 0.02);
+});
