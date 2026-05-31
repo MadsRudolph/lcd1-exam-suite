@@ -335,3 +335,65 @@ function flagRange(range, optionsText) {
   const opts = optionsText.split("\n").filter(Boolean).map((t) => ({ raw_text: t, flag: "no_match", note: "" }));
   return applyStableRangeMatch("solve_stable_K_range", range, opts);
 }
+
+// ---- dashboard orchestration (re-surfacing the existing solvers) ----
+
+// Highest-degree-first coeff array -> readable "a s^2 + b s + c".
+export function formatTf(num, den) {
+  const poly = (coeffs) => {
+    const n = coeffs.length - 1;
+    const parts = [];
+    coeffs.forEach((c, i) => {
+      const p = n - i;
+      if (Math.abs(c) < 1e-12) return;
+      const cc = Number(c.toPrecision(6));
+      const mag = Math.abs(cc) === 1 && p !== 0 ? (cc < 0 ? "-" : "") : `${cc}`;
+      const mono = p === 0 ? `${cc}` : p === 1 ? `${mag}s` : `${mag}s^${p}`;
+      parts.push((parts.length && cc > 0 ? " + " : parts.length ? " " : "") + (cc < 0 && parts.length ? "- " + mono.replace("-", "") : mono));
+    });
+    return parts.join("") || "0";
+  };
+  return den.length === 1 ? `${poly(num)}${den[0] === 1 ? "" : ` / ${den[0]}`}` : `${poly(num)} / (${poly(den)})`;
+}
+
+const cplxList = (arr) =>
+  [...arr].sort((a, b) => a.re - b.re || a.im - b.im)
+    .map((p) => (Math.abs(p.im) < 1e-9 ? `${Number(p.re.toPrecision(4))}` : `${Number(p.re.toPrecision(4))}${p.im >= 0 ? "+" : "-"}${Number(Math.abs(p.im).toPrecision(4))}j`)).join(", ");
+
+// type N = number of poles at the origin; order = #poles.
+function typeOrder(G) {
+  const poles = G.poles();
+  return { order: poles.length, type: poles.filter((p) => p.abs() < 1e-6).length };
+}
+
+const guard = (fn, fallback = null) => { try { const v = fn(); return v === undefined ? fallback : v; } catch { return fallback; } };
+
+export function analyzeNumeric(Gstr) {
+  let G;
+  try { G = parseTf(Gstr); } catch (e) { return { error: e.message }; }
+
+  const c = guard(() => characterizeTf(G), {});
+  const to = guard(() => typeOrder(G), { order: null, type: null });
+  const dc = guard(() => G.dcGain(), null);
+  const m = guard(() => solveMargins(G), null);
+  const ess = guard(() => solveEssTable(G), null);
+  const settle = guard(() => dominantSettling(G), null);
+
+  return {
+    error: null,
+    interpreted: guard(() => formatTf(G.num, G.den), Gstr),
+    dcGain: to.type > 0 ? Infinity : dc,
+    dcGain_dB: to.type > 0 ? Infinity : (dc != null && dc > 0 ? 20 * Math.log10(dc) : null),
+    type: to.type,
+    order: to.order,
+    poles: guard(() => cplxList(G.poles()), null),
+    zeros: guard(() => cplxList(G.zeros()) || "none", "none") || "none",
+    initialValue: c.initial_value ?? null,
+    finalValue: to.type > 0 ? Infinity : dc,
+    bandwidth: guard(() => bandwidth(G), null),
+    settling: settle ? settle.t_s_2pct : null,
+    margins: m,
+    ess,
+    stable: guard(() => !G.poles().some((p) => p.re > 1e-9), null),
+  };
+}
