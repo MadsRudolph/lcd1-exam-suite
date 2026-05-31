@@ -17,6 +17,39 @@ export function isValidPortConnection(startNode, startPortType, targetNode, targ
     );
 }
 
+/** Convert a screen pixel (relative to the svg's bounding rect) into world coords. */
+export function screenToWorld(clientX, clientY, rect, vb) {
+  return {
+    x: vb.x + (clientX - rect.left) / rect.width * vb.w,
+    y: vb.y + (clientY - rect.top) / rect.height * vb.h,
+  };
+}
+
+/** New viewBox after scaling by `factor` while keeping world point `pt` fixed.
+ *  factor < 1 zooms in (smaller viewBox), > 1 zooms out. Aspect ratio preserved.
+ *  clamp = { minW, maxW } bounds the viewBox width. */
+export function zoomAroundPoint(vb, pt, factor, clamp = {}) {
+  const aspect = vb.h / vb.w;
+  let w = vb.w * factor;
+  if (clamp.minW != null) w = Math.max(clamp.minW, w);
+  if (clamp.maxW != null) w = Math.min(clamp.maxW, w);
+  const h = w * aspect;
+  const rx = (pt.x - vb.x) / vb.w;
+  const ry = (pt.y - vb.y) / vb.h;
+  return { x: pt.x - rx * w, y: pt.y - ry * h, w, h };
+}
+
+/** Smallest viewBox enclosing all node centres plus `padding`; null if no nodes. */
+export function fitBox(nodes, padding = 60) {
+  if (!nodes.length) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+  }
+  return { x: minX - padding, y: minY - padding, w: (maxX - minX) + 2 * padding, h: (maxY - minY) + 2 * padding };
+}
+
 export class BlockDiagramCanvas {
     constructor(svgElement, onStateChange = () => {}) {
         this.svg = svgElement;
@@ -30,6 +63,8 @@ export class BlockDiagramCanvas {
         this.draggedConnection = null;
         this.activeWire = null; // Temporary wire during dragging
         this.wireTapCandidate = null; // Pending take-off branch from a grabbed wire
+        this.viewBox = null; // {x,y,w,h} in world units; lazily initialised from the svg size
+        this.panning = null; // active background pan: {startClientX, startClientY, startVb}
 
         this.dragOffset = { x: 0, y: 0 };
         this.nextId = 1;
@@ -115,8 +150,11 @@ export class BlockDiagramCanvas {
         this.svg.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.svg.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.svg.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.svg.addEventListener('mouseleave', () => { if (this.panning) { this.panning = null; } });
         this.svg.addEventListener('dblclick', (e) => this.onDblClick(e));
-        
+        this.svg.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
+        window.addEventListener('resize', () => this.onResize());
+
         // Key listener for deleting selected components and rotating
         window.addEventListener('keydown', (e) => {
             if (!this.isEditingText()) {
@@ -190,12 +228,64 @@ export class BlockDiagramCanvas {
         }
     }
 
+    ensureViewBox() {
+        if (this.viewBox) return;
+        const r = this.svg.getBoundingClientRect();
+        this.viewBox = { x: 0, y: 0, w: r.width || 800, h: r.height || 600 };
+    }
+
+    onResize() {
+        if (!this.viewBox) return;
+        const r = this.svg.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        // keep the world width, re-derive height from the new aspect so the
+        // viewBox aspect matches the element (no letterboxing / click drift)
+        this.viewBox = { ...this.viewBox, h: this.viewBox.w * (r.height / r.width) };
+        this.render();
+    }
+
     getMouseCoords(e) {
+        this.ensureViewBox();
         const rect = this.svg.getBoundingClientRect();
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
+        return screenToWorld(e.clientX, e.clientY, rect, this.viewBox);
+    }
+
+    onWheel(e) {
+        e.preventDefault();
+        this.ensureViewBox();
+        const rect = this.svg.getBoundingClientRect();
+        const pt = screenToWorld(e.clientX, e.clientY, rect, this.viewBox);
+        const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1; // down = zoom out
+        const baseW = rect.width || 800;
+        this.viewBox = zoomAroundPoint(this.viewBox, pt, factor, { minW: baseW / 8, maxW: baseW * 10 });
+        this.render();
+    }
+
+    zoomAtCenter(factor) {
+        this.ensureViewBox();
+        const rect = this.svg.getBoundingClientRect();
+        const baseW = rect.width || 800;
+        const center = { x: this.viewBox.x + this.viewBox.w / 2, y: this.viewBox.y + this.viewBox.h / 2 };
+        this.viewBox = zoomAroundPoint(this.viewBox, center, factor, { minW: baseW / 8, maxW: baseW * 10 });
+        this.render();
+    }
+    zoomIn() { this.zoomAtCenter(1 / 1.2); }
+    zoomOut() { this.zoomAtCenter(1.2); }
+    resetView() {
+        const r = this.svg.getBoundingClientRect();
+        this.viewBox = { x: 0, y: 0, w: r.width || 800, h: r.height || 600 };
+        this.render();
+    }
+    fitView() {
+        const box = fitBox(this.nodes, 80);
+        if (!box) { this.resetView(); return; }
+        const r = this.svg.getBoundingClientRect();
+        const aspect = (r.height || 600) / (r.width || 800);
+        let w = box.w, h = box.h;
+        if (h / w < aspect) h = w * aspect; else w = h / aspect;
+        const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+        this.viewBox = { x: cx - w / 2, y: cy - h / 2, w, h };
+        this.render();
     }
 
     onMouseDown(e) {
@@ -303,20 +393,39 @@ export class BlockDiagramCanvas {
             return;
         }
 
-        // 4. Clicked blank canvas
+        // 4. Clicked blank canvas — deselect and begin panning
         this.selectedElement = null;
+        this.ensureViewBox();
+        this.panning = {
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            startVb: { ...this.viewBox },
+        };
         this.render();
         this.onStateChange();
     }
 
     onMouseMove(e) {
+        if (this.panning) {
+            const rect = this.svg.getBoundingClientRect();
+            const dxWorld = (e.clientX - this.panning.startClientX) / rect.width * this.panning.startVb.w;
+            const dyWorld = (e.clientY - this.panning.startClientY) / rect.height * this.panning.startVb.h;
+            this.viewBox = {
+                x: this.panning.startVb.x - dxWorld,
+                y: this.panning.startVb.y - dyWorld,
+                w: this.panning.startVb.w,
+                h: this.panning.startVb.h,
+            };
+            this.render();
+            return;
+        }
         const coords = this.getMouseCoords(e);
 
         // Handle active node dragging
         if (this.draggedNode) {
             // Keep on SVG bounds
-            this.draggedNode.x = Math.max(20, Math.min(this.svg.clientWidth - 20, coords.x - this.dragOffset.x));
-            this.draggedNode.y = Math.max(20, Math.min(this.svg.clientHeight - 20, coords.y - this.dragOffset.y));
+            this.draggedNode.x = Math.max(-100000, Math.min(100000, coords.x - this.dragOffset.x));
+            this.draggedNode.y = Math.max(-100000, Math.min(100000, coords.y - this.dragOffset.y));
             
             // Reset custom waypoints of connected lines to avoid weird stretching
             this.connections.forEach(c => {
@@ -440,6 +549,7 @@ export class BlockDiagramCanvas {
     }
 
     onMouseUp(e) {
+        if (this.panning) { this.panning = null; return; }
         // A wire-tap candidate that never turned into a drag = a plain click:
         // select the wire (so it can be deleted), don't branch.
         if (this.wireTapCandidate && !this.activeWire) {
@@ -739,7 +849,11 @@ export class BlockDiagramCanvas {
 
     render() {
         this.svg.innerHTML = '';
-        
+
+        this.ensureViewBox();
+        const vb = this.viewBox;
+        this.svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
         // Define grid background
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         defs.innerHTML = `
@@ -750,8 +864,10 @@ export class BlockDiagramCanvas {
         this.svg.appendChild(defs);
 
         const gridRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        gridRect.setAttribute('width', '100%');
-        gridRect.setAttribute('height', '100%');
+        gridRect.setAttribute('x', vb.x);
+        gridRect.setAttribute('y', vb.y);
+        gridRect.setAttribute('width', vb.w);
+        gridRect.setAttribute('height', vb.h);
         gridRect.setAttribute('fill', 'url(#grid)');
         this.svg.appendChild(gridRect);
 
@@ -759,10 +875,10 @@ export class BlockDiagramCanvas {
         if (this.blueprintImgData) {
             const blueprint = document.createElementNS('http://www.w3.org/2000/svg', 'image');
             blueprint.setAttribute('id', 'canvas-blueprint');
-            blueprint.setAttribute('x', '0');
-            blueprint.setAttribute('y', '0');
-            blueprint.setAttribute('width', '100%');
-            blueprint.setAttribute('height', '100%');
+            blueprint.setAttribute('x', vb.x);
+            blueprint.setAttribute('y', vb.y);
+            blueprint.setAttribute('width', vb.w);
+            blueprint.setAttribute('height', vb.h);
             blueprint.setAttribute('opacity', this.blueprintOpacity);
             blueprint.setAttribute('style', 'pointer-events: none;');
             blueprint.setAttribute('href', this.blueprintImgData);

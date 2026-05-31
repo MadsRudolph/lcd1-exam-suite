@@ -36,6 +36,11 @@ document.addEventListener('DOMContentLoaded', () => {
         updateDiagramStats();
     });
 
+    document.getElementById('zoom-in-btn').addEventListener('click', () => canvas.zoomIn());
+    document.getElementById('zoom-out-btn').addEventListener('click', () => canvas.zoomOut());
+    document.getElementById('zoom-reset-btn').addEventListener('click', () => canvas.resetView());
+    document.getElementById('zoom-fit-btn').addEventListener('click', () => canvas.fitView());
+
     // Add Nodes
     addInputBtn.addEventListener('click', () => {
         canvas.addNode('input', 80, 200, '1', 'R');

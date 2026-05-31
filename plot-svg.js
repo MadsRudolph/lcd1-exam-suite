@@ -47,7 +47,9 @@ export function linePlot(opts) {
   const px = (x) => sx.to(x);
   const py = (y) => sy.to(y);
 
-  const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Inter, sans-serif">`];
+  const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Inter, sans-serif"` +
+    ` data-kind="${escapeXml(opts.kind || "")}" data-plotbox="${pl},${pt},${pr - pl},${pb - pt}" data-xscale="${log ? "log" : "linear"}"` +
+    ` data-xdomain="${sx.min},${sx.max}" data-ydomain="${sy.min},${sy.max}">`];
   parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="none"/>`);
   parts.push(`<clipPath id="${clipId}"><rect x="${pl}" y="${pt}" width="${pr - pl}" height="${pb - pt}"/></clipPath>`);
   if (opts.title) parts.push(`<text x="${W / 2}" y="16" fill="${COL.fg}" font-size="12" text-anchor="middle">${escapeXml(opts.title)}</text>`);
@@ -106,7 +108,7 @@ function fmtTick(v) {
 export function bodePlot(data, ann = {}) {
   const mag = linePlot({
     series: [{ x: data.omega, y: data.magDb, color: "#60a5fa" }],
-    xScale: "log", yLabel: "Magnitude (dB)", title: "Bode Diagram",
+    xScale: "log", yLabel: "Magnitude (dB)", title: "Bode Diagram", kind: "bode-mag",
     width: 460, height: 180,
     vlines: [
       ...(ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : []),
@@ -121,7 +123,7 @@ export function bodePlot(data, ann = {}) {
   });
   const ph = linePlot({
     series: [{ x: data.omega, y: data.phaseDeg, color: "#60a5fa" }],
-    xScale: "log", xLabel: "Frequency (rad/s)", yLabel: "Phase (deg)",
+    xScale: "log", xLabel: "Frequency (rad/s)", yLabel: "Phase (deg)", kind: "bode-phase",
     width: 460, height: 160,
     vlines: ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : [],
   });
@@ -136,7 +138,7 @@ export function nyquistPlot(data, ann = {}) {
       { x: data.re, y: data.im, color: "#60a5fa" },
       { x: data.re, y: data.im.map((v) => -v), color: "#60a5fa", dash: "4 3" },
     ],
-    xScale: "linear", xLabel: "Re", yLabel: "Im", title: "Nyquist",
+    xScale: "linear", xLabel: "Re", yLabel: "Im", title: "Nyquist", kind: "nyquist",
     width: 320, height: 320,
     markers: [{ x: -1, y: 0, label: "-1", color: "#ef4444" }],
     readout: verdict,
@@ -161,7 +163,7 @@ export function stepPlot(data, ann = {}) {
   }
   return linePlot({
     series: [{ x: data.t, y: data.y, color: "#c0392b" }],
-    xScale: "linear", xLabel: "Time (s)", yLabel: "Amplitude", title: "Step Response",
+    xScale: "linear", xLabel: "Time (s)", yLabel: "Amplitude", title: "Step Response", kind: "step",
     width: 460, height: 260,
     hlines: ann.finalValue != null ? [{ y: ann.finalValue, color: "#64748b" }] : [],
     vlines: ann.settling2pct != null ? [{ x: ann.settling2pct, color: "#a78bfa" }] : [],
@@ -182,7 +184,7 @@ export function poleZeroPlot(data) {
   const ys = [...data.poles, ...data.zeros].map((c) => c.im).concat([0]);
   return linePlot({
     series: [{ x: xs, y: ys, color: "transparent" }],
-    xScale: "linear", xLabel: "Real", yLabel: "Imag", title: "Pole-Zero Map",
+    xScale: "linear", xLabel: "Real", yLabel: "Imag", title: "Pole-Zero Map", kind: "polezero",
     width: 320, height: 280,
     markers: [
       ...data.poles.map((p) => ({ x: p.re, y: p.im, label: "x", color: "#ef4444" })),
