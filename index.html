@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>34722 Linear Control Design — Block Diagram Reduction Tool</title>
+    
+    <!-- Premium Fonts -->
+    <link rel="stylesheet" href="./style.css">
+    
+    <!-- KaTeX for beautiful math formulas (Offline Local) -->
+    <link rel="stylesheet" href="./node_modules/katex/dist/katex.min.css">
+    <script defer src="./node_modules/katex/dist/katex.min.js"></script>
+</head>
+<body>
+    <div class="app-container">
+        <!-- LEFT CONTROL PANEL -->
+        <aside class="sidebar">
+            <div class="panel-header">
+                <h1>LCD1 Reducer</h1>
+                <p>Block Diagram Reduction Assistant</p>
+            </div>
+
+            <h2>Add Component</h2>
+            <div class="tool-grid">
+                <button class="btn-tool blue" id="add-input-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8l4 4-4 4M8 12h8"/></svg>
+                    Input (R)
+                </button>
+                <button class="btn-tool blue" id="add-output-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 16l4-4-4-4M8 12h8"/></svg>
+                    Output (Y)
+                </button>
+                <button class="btn-tool purple" id="add-block-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 12h6"/></svg>
+                    Block (G)
+                </button>
+                <button class="btn-tool purple" id="add-sum-btn">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><path d="M12 8v8M8 12h8"/></svg>
+                    Sum Junction
+                </button>
+            </div>
+
+            <h2>Screenshot Import</h2>
+            <div style="margin-bottom: 24px;">
+                <button class="btn-tool green" id="open-vision-btn" style="width: 100%; display: flex; flex-direction: row; align-items: center; justify-content: center; gap: 8px; padding: 12px 8px;">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="16" height="16">
+                        <rect x="3" y="3" width="18" height="18" rx="2" ry="2"/>
+                        <circle cx="9" cy="9" r="2"/>
+                        <path d="m21 15-3.086-3.086a2 2 0 0 0-2.828 0L6 21"/>
+                    </svg>
+                    Import Diagram (Ctrl+V)
+                </button>
+            </div>
+
+            <h2>Properties</h2>
+            <div id="properties-panel" class="form-group" style="display: none;">
+                <label for="prop-label">Node Label</label>
+                <input type="text" id="prop-label" placeholder="e.g. G1">
+                
+                <label for="prop-value" style="margin-top: 12px;" id="prop-value-label">Transfer Function</label>
+                <input type="text" id="prop-value" placeholder="e.g. 10/(s^2+3s+2)">
+            </div>
+            <div id="no-properties-msg" style="color: var(--text-secondary); font-size: 12px; font-style: italic; text-align: center; margin-bottom: 20px;">
+                Select a node on the canvas to edit its properties.
+            </div>
+
+            <h2>Load Exam Templates</h2>
+            <div class="template-list">
+                <button class="template-item" data-template="feedback">
+                    Standard Feedback Loop
+                    <span>Simple G / H negative feedback</span>
+                </button>
+                <button class="template-item" data-template="s20q3">
+                    Exam S20 Q3 Diagram
+                    <span>Parallel branch A with loop 1/(s+B)</span>
+                </button>
+                <button class="template-item" data-template="s21q1">
+                    Exam S21 Q1 Diagram
+                    <span>Two forward paths sharing one loop BCF</span>
+                </button>
+                <button class="template-item" data-template="f22q1">
+                    Exam F22 Q1 Diagram
+                    <span>Nested loops H1, H2 (Take-off moved Past E)</span>
+                </button>
+            </div>
+
+            <!-- Keyboard Shortcuts -->
+            <h2 style="margin-top: 24px;">Keyboard Shortcuts</h2>
+            <div class="section-card" style="margin-bottom: 24px; padding: 14px; background: rgba(30, 41, 59, 0.2); border: 1px solid var(--border-color); border-radius: 8px;">
+                <ul style="list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 10px; font-size: 11px; color: var(--text-secondary);">
+                    <li style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Rotate Component</span>
+                        <kbd style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px; font-family: monospace; color: var(--text-primary); font-weight: bold; font-size: 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.5);">R</kbd>
+                    </li>
+                    <li style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Solve Diagram</span>
+                        <kbd style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px; font-family: monospace; color: var(--text-primary); font-weight: bold; font-size: 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.5);">S</kbd>
+                    </li>
+                    <li style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Delete Selected</span>
+                        <kbd style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px; font-family: monospace; color: var(--text-primary); font-weight: bold; font-size: 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.5);">Del</kbd>
+                    </li>
+                    <li style="display: flex; justify-content: space-between; align-items: center;">
+                        <span>Cancel Wire / Deselect</span>
+                        <kbd style="background: rgba(255,255,255,0.08); border: 1px solid rgba(255,255,255,0.15); border-radius: 4px; padding: 2px 6px; font-family: monospace; color: var(--text-primary); font-weight: bold; font-size: 10px; box-shadow: 0 1px 1px rgba(0,0,0,0.5);">Esc</kbd>
+                    </li>
+                </ul>
+            </div>
+
+            <!-- Diagram Analytics -->
+            <h2 style="margin-top: 24px;">Diagram Stats</h2>
+            <div class="section-card" style="margin-bottom: 24px; padding: 14px; background: rgba(30, 41, 59, 0.2); border: 1px solid var(--border-color); border-radius: 8px; font-size: 11px; color: var(--text-secondary);">
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px;">
+                    <div>Blocks: <strong id="stats-blocks" style="color: var(--accent-purple); font-family: monospace; font-size: 12px;">0</strong></div>
+                    <div>Sum Junctions: <strong id="stats-sums" style="color: var(--accent-purple); font-family: monospace; font-size: 12px;">0</strong></div>
+                    <div>Connections: <strong id="stats-conns" style="color: var(--accent-blue); font-family: monospace; font-size: 12px;">0</strong></div>
+                    <div>Feedback Loops: <strong id="stats-loops" style="color: var(--accent-green); font-family: monospace; font-size: 12px;">0</strong></div>
+                </div>
+            </div>
+
+            <!-- Standalone App Updates -->
+            <div id="update-section" style="display: none; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--border-color);">
+                <button class="btn-action" id="update-btn" style="width: 100%; background: rgba(16, 185, 129, 0.12); border-color: rgba(16, 185, 129, 0.25); color: #10b981; font-family: var(--font-outfit); font-size: 12px; font-weight: 600; padding: 10px 12px; transition: all 0.2s;">
+                    Check for Updates
+                </button>
+                <div style="display: flex; flex-direction: column; gap: 4px; margin-top: 8px; align-items: center;">
+                    <div id="app-version-label" style="color: var(--text-secondary); font-size: 10px; opacity: 0.5; font-family: var(--font-inter);">
+                        v1.0.6
+                    </div>
+                    <div id="update-status-msg" style="color: var(--text-secondary); font-size: 11px; text-align: center; min-height: 16px; font-style: italic;">
+                        Standalone desktop app mode
+                    </div>
+                </div>
+            </div>
+        </aside>
+
+        <!-- CENTER INTERACTIVE CANVAS -->
+        <main class="canvas-container">
+            <header class="canvas-header">
+                <div class="canvas-header-title">SVG INTERACTIVE BOARD</div>
+                
+                <!-- Background Blueprint Watermark Controls -->
+                <div class="blueprint-controls" id="blueprint-controls" style="display: none; align-items: center; gap: 10px; background: rgba(30, 41, 59, 0.45); padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
+                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Blueprint Opacity:</span>
+                    <input type="range" id="blueprint-opacity" min="0" max="100" value="25" style="width: 80px; cursor: pointer;">
+                    <button class="btn-action red" id="clear-blueprint-btn" style="padding: 2px 8px; font-size: 10px; line-height: 1.2;">Clear Blueprint</button>
+                </div>
+
+                <div class="canvas-actions">
+                    <button class="btn-action" id="solve-btn">Solve Loop</button>
+                    <button class="btn-action red" id="clear-btn">Clear Canvas</button>
+                </div>
+            </header>
+            
+            <svg id="diagram-svg" width="100%" height="100%">
+                <!-- Background Blueprint Watermark -->
+                <image id="canvas-blueprint" x="0" y="0" width="1200" height="600" opacity="0.25" style="display: none; pointer-events: none;"></image>
+            </svg>
+        </main>
+
+        <!-- RESIZE HANDLE -->
+        <div class="resize-handle" id="right-resize-handle"></div>
+
+        <!-- RIGHT MATHEMATICAL REDUCTION STEPS -->
+        <aside class="right-panel">
+            <div class="panel-header">
+                <h1>Symbolic Solve</h1>
+                <p>Algebraic Exact Rational reduction</p>
+            </div>
+
+            <div class="section-card">
+                <div class="card-header" style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px; flex-wrap: wrap; gap: 8px;">
+                    <h3 style="margin-bottom: 0;">Simplified Transfer Function</h3>
+                    <div class="copy-actions" id="copy-actions-container" style="display: none; display: flex; gap: 8px;">
+                        <button class="btn-copy" id="copy-text-btn" title="Copy as Plain Text">
+                            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12" style="margin-right: 2px;"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                            Copy Text
+                        </button>
+                        <button class="btn-copy" id="copy-latex-btn" title="Copy as LaTeX">
+                            Copy LaTeX
+                        </button>
+                    </div>
+                </div>
+                <div class="solution-math" id="tf-output">
+                    <!-- Reduced TF formula will render here -->
+                    <span style="color: var(--text-secondary); font-size: 13px;">Diagram solved TF will appear here.</span>
+                </div>
+            </div>
+
+            <div class="section-card" style="flex-grow: 1; display: flex; flex-direction: column;">
+                <h3>Step-by-Step Node Algebra</h3>
+                <div class="steps-list" id="steps-output" style="flex-grow: 1;">
+                    <!-- Steps will render here -->
+                    <div style="color: var(--text-secondary); font-size: 12px; font-style: italic; text-align: center; margin-top: 40px;">
+                        Connect your input R to output Y and blocks, then solve to view algebraic steps.
+                    </div>
+                </div>
+            </div>
+        </aside>
+    </div>
+
+    <!-- Frosted-glass Vision Import Modal -->
+    <div id="vision-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card">
+            <div class="modal-header">
+                <h3>Offline Screenshot Importer</h3>
+                <button class="btn-close" id="close-vision-btn">&times;</button>
+            </div>
+            
+            <div class="modal-body">
+                <p class="modal-help-text">
+                    Take a screenshot of any block diagram (e.g. Win+Shift+S), paste it directly here using <strong>Ctrl+V</strong>, or drag the image file into the drop-zone.
+                </p>
+                
+                <div id="vision-dropzone" class="dropzone-container">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="36" height="36" style="margin-bottom: 12px; color: var(--accent-blue);">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4M17 8l-5-5-5 5M12 3v12"/>
+                    </svg>
+                    <p class="dropzone-main-text">Drag & Drop Screenshot Here</p>
+                    <p class="dropzone-sub-text">or click to browse from files, or press Ctrl+V to paste</p>
+                    <input type="file" id="vision-file-input" accept="image/*" style="display: none;">
+                </div>
+                
+                <div id="vision-preview-container" style="display: none; margin-top: 16px;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px;">
+                        <span style="font-size: 11px; font-weight: 600; color: var(--text-secondary);">Image Preview:</span>
+                        <button class="btn-action red" id="remove-preview-btn" style="padding: 2px 8px; font-size: 10px;">Remove Image</button>
+                    </div>
+                    <div class="image-preview-wrapper">
+                        <img id="vision-preview-img" src="" alt="Screenshot Preview">
+                    </div>
+                </div>
+
+                <div id="vision-status-container" style="display: none; margin-top: 16px; padding: 12px; background: rgba(16, 185, 129, 0.08); border: 1px solid rgba(16, 185, 129, 0.15); border-radius: 8px;">
+                    <div style="display: flex; align-items: center; gap: 10px;">
+                        <div class="spinner"></div>
+                        <span id="vision-status-text" style="font-size: 12px; color: var(--text-primary); font-weight: 500;">Processing binarization...</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="modal-footer">
+                <button class="btn-action" id="cancel-vision-btn">Cancel</button>
+                <button class="btn-action blue" id="trace-blueprint-btn" style="display: inline-flex; align-items: center; gap: 6px; box-shadow: 0 0 10px rgba(59, 130, 246, 0.2);" disabled>
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="12" height="12"><path d="M12 20h9M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>
+                    Trace as Canvas Blueprint (Recommended)
+                </button>
+                <button class="btn-action green" id="process-vision-btn" disabled>Auto-Generate (Experimental)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Application Script Initialization (Offline Bundle) -->
+    <script defer src="./bundle.js"></script>
+</body>
+</html>

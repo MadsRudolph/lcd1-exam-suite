@@ -1,19 +1,48 @@
 # LCD1 Exam Suite
 
-The planned **unified offline app** for the DTU 34722 Linear Control Design 1 exam — merging two
-existing tools into one product:
+A **unified, 100% offline desktop app** for the DTU 34722 Linear Control Design 1 exam, merging two
+tools into one Electron bundle:
 
-- **Block Diagram Reducer** (Electron/JS, interactive draw-and-reduce): https://github.com/MadsRudolph/block-diagram-reducer
-- **LCD1 Solver** (Python/PyQt6, multiple-choice solver + Smart Paste): https://github.com/MadsRudolph/lcd1-solver
+- **Block Diagram Reducer** — interactive draw-and-reduce canvas with exact symbolic transfer functions.
+- **LCD1 Solver** — Smart-Paste multiple-choice solver covering exam problem types P1–P7, ported from
+  Python to JS and validated against the original 70-test oracle.
 
-> **Status: planning only.** No app code lives here yet. This repo currently holds the integration
-> plan so a fresh session can pick up the merge.
+A floating mode switcher toggles between the two; everything ships in a single self-updating bundle.
 
-## Start here
+## Run it
 
-1. **[`HANDOFF.md`](HANDOFF.md)** — the master integration handoff: both projects, how they relate,
-   the pivotal architecture decision (port LCD1 to JS vs. Python backend), recommended approach, and
-   step-by-step next actions.
-2. **[`docs/block-diagram-reducer-questionnaire.md`](docs/block-diagram-reducer-questionnaire.md)** —
-   the Block Diagram Reducer's builder (Anti-Gravity) explaining, in its own words, exactly what it
-   made: architecture, data model, the solver/math engine, limits, and integration recommendations.
+```bash
+npm install        # one-time (Electron, esbuild, KaTeX)
+npm run build      # bundle app.js -> bundle.js
+npm start          # launch the desktop app
+```
+
+Or double-click `Launch-Desktop-App.bat` (Windows). In the app, use the top switcher:
+**◧ Block Diagram** to draw/reduce diagrams, **∑ LCD1 Solver** to paste an exam question and get the
+routed solution with the matching multiple-choice option flagged.
+
+## Verify the math
+
+```bash
+npm test           # 74 solver parity tests (node:test, zero deps)
+```
+
+Every solver is checked against the Python oracle (`lcd1-solver/tests/`, 70/70 passing). See
+[`docs/js-port-fidelity-spike.md`](docs/js-port-fidelity-spike.md) for the fidelity write-up and
+[`spike/README.md`](spike/README.md) for the engine layout and the standalone CLI.
+
+## Layout
+
+```
+main.js · preload.js · index.html · style.css   Electron shell (from Block Diagram Reducer)
+app.js · canvas.js · solver.js · math-engine.js  BDR renderer + symbolic engine
+lcd-solver-ui.js · lcd-engine.js                 LCD1 Solver mode (UI + dispatch)
+spike/                                            validated JS solver engine + parity tests + CLI
+docs/                                             HANDOFF, questionnaire, fidelity report
+```
+
+## Background
+
+- **[`HANDOFF.md`](HANDOFF.md)** — the integration plan and the architecture decision (JS port).
+- **[`docs/block-diagram-reducer-questionnaire.md`](docs/block-diagram-reducer-questionnaire.md)** —
+  the Block Diagram Reducer's architecture in its builder's own words.

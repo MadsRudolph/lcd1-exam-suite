@@ -1,7 +1,10 @@
 # CLAUDE.md — LCD1 Exam Suite (unified app)
 
-This repo will become **one unified, 100% offline desktop app** for the DTU 34722 Linear Control
-Design 1 exam, merging two existing tools. **Status: planning only — no app code here yet.**
+This repo is **one unified, 100% offline desktop app** for the DTU 34722 Linear Control
+Design 1 exam, merging two existing tools. **Status: merged app built** — BDR Electron shell at the
+repo root with an LCD1 Solver mode (`lcd-solver-ui.js` + `lcd-engine.js`) over the JS solver engine in
+`spike/`. All P1–P7 solvers are ported and parity-checked against the 70-test oracle (`npm test` → 74
+passing). Run with `npm install && npm run build && npm start`.
 
 ## ▶️ FIRST ACTIONS for a fresh session
 

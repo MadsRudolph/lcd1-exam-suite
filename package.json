@@ -1,0 +1,23 @@
+{
+  "name": "lcd1-exam-suite",
+  "version": "1.1.0",
+  "description": "Unified offline desktop app for DTU 34722 Linear Control Design 1 — Block Diagram Reducer + LCD1 Solver in one Electron bundle.",
+  "main": "main.js",
+  "scripts": {
+    "build": "npx esbuild app.js --bundle --outfile=bundle.js --format=iife",
+    "start": "electron .",
+    "package": "electron-packager . LCD1ExamSuite --platform=win32 --arch=x64 --overwrite",
+    "test": "node --test spike/test/"
+  },
+  "keywords": ["control-systems", "dtu", "34722", "offline", "electron"],
+  "author": "",
+  "license": "ISC",
+  "dependencies": {
+    "katex": "^0.17.0"
+  },
+  "devDependencies": {
+    "electron": "^42.3.0",
+    "electron-packager": "^17.1.2",
+    "esbuild": "^0.28.0"
+  }
+}
