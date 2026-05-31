@@ -107,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
                     if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
                 } catch (e) {
+                    lastSolutionResult = null;
                     console.error(e);
                     tfOutput.innerHTML = `<span style="color: var(--accent-red); font-size: 13px;">Error: ${e.message}</span>`;
                 }

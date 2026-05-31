@@ -406,6 +406,12 @@ h2 {
     stroke-width: 4.5px !important;
 }
 
+.break-armed,
+.break-armed .connection-line,
+.break-armed .connection-hit {
+    cursor: crosshair !important;
+}
+
 /* Subtle tap port for branching feedback wires */
 .tap-port {
     opacity: 0.15;

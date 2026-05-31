@@ -94,6 +94,7 @@ export class BlockDiagramCanvas {
     enterBreakMode(callback) {
         this.breakMode = callback;
         this.svg.style.cursor = 'crosshair';
+        this.svg.classList.add('break-armed');
     }
 
     addNode(type, x, y, value = "1", label = "") {
@@ -174,6 +175,7 @@ export class BlockDiagramCanvas {
                     if (this.breakMode) {
                         this.breakMode = null;
                         this.svg.style.cursor = '';
+                        this.svg.classList.remove('break-armed');
                     } else if (this.activeWire) {
                         this.activeWire = null;
                         this.render();
@@ -312,6 +314,7 @@ export class BlockDiagramCanvas {
                 const cb = this.breakMode;
                 this.breakMode = null;
                 this.svg.style.cursor = '';
+                this.svg.classList.remove('break-armed');
                 cb(connId);
             }
             return;
