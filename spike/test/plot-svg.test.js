@@ -57,3 +57,24 @@ test("stepPlot shows a warning for an unbounded response", () => {
   const svg = stepPlot({ t: [0,1,2], y: [0,5,40], unbounded: true, reason: "unstable: grows without bound" }, {});
   assert.ok(/grows without bound/.test(svg), "warning rendered in readout");
 });
+
+test("linePlot stamps the mapping attributes when a kind is given", () => {
+  const svg = linePlot({
+    series: [{ x: [1, 10, 100], y: [0, -6, -20], color: "#c00" }],
+    xScale: "log", kind: "bode-mag", width: 460, height: 180,
+  });
+  assert.ok(/data-kind="bode-mag"/.test(svg), "kind");
+  assert.ok(/data-plotbox="[\d.,-]+"/.test(svg), "plotbox");
+  assert.ok(/data-xscale="log"/.test(svg), "xscale");
+  assert.ok(/data-xdomain="[-\d.,]+"/.test(svg), "xdomain");
+  assert.ok(/data-ydomain="[-\d.,]+"/.test(svg), "ydomain");
+});
+
+test("composers carry their kind through to the svg", () => {
+  const bode = bodePlot({ omega: [1, 10], magDb: [0, -20], phaseDeg: [-90, -180] }, {});
+  assert.ok(/data-kind="bode-mag"/.test(bode) && /data-kind="bode-phase"/.test(bode));
+  const nyq = nyquistPlot({ re: [1, 0], im: [0, -1], omega: [1, 10] }, {});
+  assert.ok(/data-kind="nyquist"/.test(nyq));
+  const step = stepPlot({ t: [0, 1], y: [0, 1] }, {});
+  assert.ok(/data-kind="step"/.test(step));
+});
