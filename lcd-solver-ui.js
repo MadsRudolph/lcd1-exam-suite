@@ -97,9 +97,14 @@ function analyzeAndRender() {
   renderDesignStrip(state.board, src); // implemented in Task 6
 }
 
-// stubs filled by later tasks — keep them so the module loads
-function renderPlotsInto() {}
-function renderDesignStrip() {}
+function renderPlotsInto(parent, src) {
+  let pd;
+  try { pd = buildPlotData(parseTf(src)); } catch { return; }
+  parent.append(sectionLabel("Plots · overlay the exam figure to verify"));
+  parent.append(renderPlotPanel(pd, "Bode"));
+}
+
+// stub filled by Task 7 — keep it so the module loads
 function renderSymbolicBoard() {}
 
 function init() {
