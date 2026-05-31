@@ -15,3 +15,9 @@ venv/
 .DS_Store
 Thumbs.db
 *.log
+.obsidian/
+
+# Mock-exam rendered PDFs + LaTeX aux (regenerate from .tex + build_figures.py)
+mock-exams/*.pdf
+mock-exams/*.aux
+mock-exams/*.out
