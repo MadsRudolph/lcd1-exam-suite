@@ -647,7 +647,8 @@ export class BlockDiagramCanvas {
 
         const dir = node.direction || 'right';
 
-        if (node.type === 'input') {
+        if (node.type === 'input' || node.type === 'disturbance') {
+            // Source circle with a single output port (same geometry as input).
             if (dir === 'right') return { x: node.x + 35, y: node.y };
             if (dir === 'left') return { x: node.x - 35, y: node.y };
             if (dir === 'up') return { x: node.x, y: node.y - 35 };
