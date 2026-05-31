@@ -347,13 +347,25 @@ export function formatTf(num, den) {
       const p = n - i;
       if (Math.abs(c) < 1e-12) return;
       const cc = Number(c.toPrecision(6));
-      const mag = Math.abs(cc) === 1 && p !== 0 ? (cc < 0 ? "-" : "") : `${cc}`;
-      const mono = p === 0 ? `${cc}` : p === 1 ? `${mag}s` : `${mag}s^${p}`;
-      parts.push((parts.length && cc > 0 ? " + " : parts.length ? " " : "") + (cc < 0 && parts.length ? "- " + mono.replace("-", "") : mono));
+      const abscc = Math.abs(cc);
+      const mag = abscc === 1 && p !== 0 ? "" : `${abscc}`;
+      const unsignedMono = p === 0 ? `${abscc}` : p === 1 ? `${mag}s` : `${mag}s^${p}`;
+      if (parts.length === 0) {
+        parts.push(cc < 0 ? `-${unsignedMono}` : unsignedMono);
+      } else {
+        parts.push(cc < 0 ? ` - ${unsignedMono}` : ` + ${unsignedMono}`);
+      }
     });
     return parts.join("") || "0";
   };
-  return den.length === 1 ? `${poly(num)}${den[0] === 1 ? "" : ` / ${den[0]}`}` : `${poly(num)} / (${poly(den)})`;
+  const wrap = (s) => (s.includes(" ") ? `(${s})` : s);
+  if (den.length === 1) {
+    return den[0] === 1 ? poly(num) : `${wrap(poly(num))} / ${den[0]}`;
+  }
+  const ds = poly(den);
+  const ns = poly(num);
+  const denStr = ds.includes(" ") ? `(${ds})` : ds;
+  return `${wrap(ns)} / ${denStr}`;
 }
 
 const cplxList = (arr) =>

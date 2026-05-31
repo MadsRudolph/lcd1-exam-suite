@@ -28,3 +28,18 @@ test("analyzeNumeric is null-safe field-by-field (improper TF doesn't throw)", (
   assert.ok(a.error == null, "no top-level error");
   assert.equal(typeof a, "object");
 });
+
+test("formatTf parenthesizes a multi-term numerator", () => {
+  assert.equal(formatTf([1, -1], [1, 0, -4]).replace(/\s+/g, ""), "(s-1)/(s^2-4)");
+});
+
+test("formatTf leaves a single-term numerator/denominator bare", () => {
+  assert.equal(formatTf([1], [1, 0]).replace(/\s+/g, ""), "1/s");
+});
+
+test("analyzeNumeric of an integrator 1/s: DC gain and final value are Infinity", () => {
+  const a = analyzeNumeric("1/s");
+  assert.equal(a.dcGain, Infinity);
+  assert.equal(a.finalValue, Infinity);
+  assert.equal(a.type, 1);
+});
