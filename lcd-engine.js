@@ -14,6 +14,7 @@ import { solveOdeToTf, solveStateSpaceToTf } from "./spike/solvers/p1.js";
 import { composeTfFromBode } from "./spike/solvers/p2.js";
 import { parseQuestion } from "./spike/smart-paste.js";
 import { matchOptions, applyStableRangeMatch } from "./spike/match.js";
+import { symbolicEquivTest } from "./symbolic/equiv.js";
 import { formByFn } from "./lcd-forms.js";
 
 // ---- formatting ----
@@ -170,6 +171,17 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         const r = analyzeStability(parseTf(inp.G), fnum(inp.K) ?? 1);
         out.latex = `\\text{${r.stable ? "stable" : "UNSTABLE"}}\\ (Z=${r.closedLoopRhpPoles})`;
         out.summary = [["open-loop RHP poles", r.openLoopRhpPoles], ["closed-loop RHP poles", r.closedLoopRhpPoles], ["stable?", r.stable ? "yes" : "no"]];
+        break;
+      }
+      case "symbolic_equiv": {
+        const r = symbolicEquivTest(inp.ref, optionsText);
+        if (!r.ok) { out.ok = false; out.note = r.error; break; }
+        out.latex = r.canonicalLatex;
+        out.summary = [["simplified", r.canonicalFormula]];
+        out.options = r.options;
+        out.note = r.options.length
+          ? null
+          : "Paste the candidate answers in the options box to test them against this TF.";
         break;
       }
       case "plot_tf": {

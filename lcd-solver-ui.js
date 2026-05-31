@@ -3,7 +3,7 @@
 // and Smart Paste *pre-fills* the matching form (you review/correct, then solve).
 import { FORMS, formByFn } from "./lcd-forms.js";
 import { runSolver, routeQuestion } from "./lcd-engine.js";
-import { setHandoff, consumeHandoff } from "./lcd-handoff.js";
+import { setHandoff } from "./lcd-handoff.js";
 import { solveBlockDiagram } from "./solver.js";
 import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
 import { buildPlotData } from "./spike/solvers/plotdata.js";
@@ -249,6 +249,12 @@ function init() {
     if (gField) gField.value = tf;
     solve();
   };
+  state.setRef = (tf) => {
+    selectForm("symbolic_equiv");
+    const refField = state.fields.get("ref");
+    if (refField) refField.value = tf;
+    solve();
+  };
 
   window.LCDBridge = {
     onSolved: (result, canvas) => mountUseButton(result, canvas),
@@ -290,12 +296,23 @@ function normalizeTf(s) {
 }
 
 function doDiagramHandoff(result, canvas) {
+  // Hand off the *simplified symbolic* TF. The chooser lets you either test it
+  // against answer options as-is (parameters kept symbolic) or analyze it
+  // numerically — only the numeric routes ask you to plug in values.
+  const symbolic = result.finalTransferFunction.toFormulaString();
   const symbols = symbolsInCanvas(canvas);
-  if (symbols.length === 0) {
-    enterFromDiagram(normalizeTf(result.finalTransferFunction.toFormulaString()));
+  enterFromDiagram(symbolic, { canvas, symbols });
+}
+
+// Route a numeric solver: if the diagram still has symbolic blocks, ask for
+// values and re-reduce numerically first; otherwise use the TF directly.
+function routeNumeric(fn, symbolicTf) {
+  const { canvas, symbols } = state.bridgeCtx || { symbols: [] };
+  if (!symbols || symbols.length === 0) {
+    state.setG(fn, normalizeTf(symbolicTf));
+    state.chooser.style.display = "none";
     return;
   }
-  // Symbolic: ask for numeric values, substitute into block values, re-solve numerically.
   showSubstitutionModal(symbols, (values) => {
     const numericNodes = canvas.nodes.map((n) => {
       if (n.type !== "block" || !n.value) return n;
@@ -305,7 +322,8 @@ function doDiagramHandoff(result, canvas) {
     });
     try {
       const num = solveBlockDiagram(numericNodes, canvas.connections);
-      enterFromDiagram(normalizeTf(num.finalTransferFunction.toFormulaString()));
+      state.setG(fn, normalizeTf(num.finalTransferFunction.toFormulaString()));
+      state.chooser.style.display = "none";
     } catch (e) {
       alert(`Could not reduce with those values: ${e.message}`);
     }
@@ -350,8 +368,9 @@ function showSubstitutionModal(symbols, onConfirm) {
   inputs[symbols[0]].focus();
 }
 
-function enterFromDiagram(tf) {
+function enterFromDiagram(tf, ctx = { symbols: [] }) {
   setHandoff(tf);
+  state.bridgeCtx = ctx;
   state.setMode(true);
   renderChooser(tf);
 }
@@ -363,13 +382,23 @@ function renderChooser(tf) {
   c.append(el("div", { style: `color:${TXT};font:600 12px 'Outfit';` }, "From the block diagram:"));
   const tfEl = el("div", { style: `color:#a5b4fc;font:12px 'JetBrains Mono';overflow-x:auto;` }); tfEl.textContent = `G(s) = ${tf}`;
   c.append(tfEl);
-  c.append(el("div", { style: `color:${SUB};font:11px 'Inter';` }, "What do you want to do with it?"));
+
+  // Symbolic path — keep K, a, … symbolic and test multiple-choice answers.
+  c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:2px;` }, "Test answer options without plugging in numbers:"));
+  const symChip = el("button", { title: "keep parameters symbolic and test exam answers for algebraic equality", style:
+    `align-self:flex-start;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
+    "∑ Test against answer options (symbolic)");
+  symChip.onclick = () => { state.setRef(tf); c.style.display = "none"; };
+  c.append(symChip);
+
+  // Numeric path — the existing analysis solvers.
+  c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:6px;` }, "Or analyze it numerically:"));
   const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   for (const ch of BRIDGE_CHOICES) {
     const chip = el("button", { title: `treats G as ${ch.note}`, style:
       `background:rgba(30,41,59,0.7);color:${TXT};border:1px solid ${BORDER};border-radius:999px;padding:6px 11px;font:600 11px 'Outfit';cursor:pointer;` });
     chip.textContent = `${ch.label} · ${ch.note}`;
-    chip.onclick = () => { const handoff = consumeHandoff() || tf; state.setG(ch.fn, handoff); c.style.display = "none"; };
+    chip.onclick = () => routeNumeric(ch.fn, tf);
     chips.append(chip);
   }
   c.append(chips);

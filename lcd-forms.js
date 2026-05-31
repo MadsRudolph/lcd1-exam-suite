@@ -162,6 +162,14 @@ export const FORMS = [
     explanation: "Closed-loop stability of 1 + K·G: open-loop and closed-loop RHP-pole counts (handles RHP plants).",
   },
   {
+    pattern: "Analysis", title: "Symbolic equivalence", variant: "are these answers algebraically equal?", fn: "symbolic_equiv",
+    resultKind: "INFO",
+    fields: [
+      { name: "ref", label: "Reference TF (in s, parameters like K, a kept symbolic)", kind: "str", placeholder: "K/(s^2 + (a+1)*s + 2*K + a)", tooltip: "The transfer function you computed — or send one straight from the Block Diagram. Parameters (K, a, ω…) stay symbolic. Paste the candidate answers in the options box below; each is tested for exact algebraic equality." },
+    ],
+    explanation: "Tests whether each multiple-choice answer is algebraically identical to your reference TF — even when written in a different but equal form (expanded, reordered, or scaled by a constant). Put the candidate answers in the options box.",
+  },
+  {
     pattern: "Analysis", title: "Plot transfer function", variant: "step · Bode · Nyquist · pole-zero", fn: "plot_tf",
     resultKind: "INFO",
     fields: [{ name: "G", label: "G(s)", kind: "tf", placeholder: "25/(s**2+3*s+25)", tooltip: "Any transfer function to plot: step response, Bode, Nyquist and pole-zero map." }],
