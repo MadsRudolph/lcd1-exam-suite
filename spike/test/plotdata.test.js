@@ -48,7 +48,7 @@ test("nyquistData caps the magnitude for an integrator", () => {
   }
 });
 
-import { stepData } from "../solvers/plotdata.js";
+import { stepData, poleZeroData, plotAnnotations } from "../solvers/plotdata.js";
 
 test("stepData final value equals the DC gain for a stable TF", () => {
   const tf = parseTf("5/((s+1)*(s+2))"); // DC gain = 5/2 = 2.5
@@ -70,4 +70,22 @@ test("stepData handles a pure first-order lag", () => {
   const { t, y } = stepData(tf, { tMax: 6, n: 600 });
   const i1 = t.findIndex((tt) => tt >= 1);
   assert.ok(Math.abs(y[i1] - 0.632) < 0.02, `y(1) ${y[i1]} ~ 0.632`);
+});
+
+test("poleZeroData returns poles and zeros as {re,im}", () => {
+  const tf = parseTf("(s+3)/((s+1)*(s+2))");
+  const { poles, zeros } = poleZeroData(tf);
+  assert.equal(poles.length, 2);
+  assert.equal(zeros.length, 1);
+  assert.ok(Math.abs(zeros[0].re + 3) < 1e-6, "zero at -3");
+});
+
+test("plotAnnotations is null-safe and fills what it can", () => {
+  const tf = parseTf("25/(s**2+3*s+25)"); // stable 2nd-order
+  const ann = plotAnnotations(tf);
+  assert.ok(ann.step && Math.abs(ann.step.finalValue - 1) < 1e-6, "step final value");
+  assert.ok(ann.step.overshootPct > 30, "overshoot ~37%");
+  assert.ok(ann.nyquist && typeof ann.nyquist.stable === "boolean", "stability verdict");
+  // an always-stable closed TF has no finite PM crossover; must not throw
+  assert.doesNotThrow(() => plotAnnotations(parseTf("1/(s+1)")));
 });

@@ -2,8 +2,8 @@
 // Pure compute layer for the plotting feature. In: a NumericTF. Out: plain
 // data objects. No DOM, no rendering — fully unit-testable.
 import { Complex } from "../numeric/complex.js";
-import { logspace } from "../numeric/margins.js";
-import { dominantSettling } from "./analysis.js";
+import { logspace, solveMargins } from "../numeric/margins.js";
+import { dominantSettling, bandwidth, analyzeStability, characterizeTf } from "./analysis.js";
 
 export { logspace };
 
@@ -127,4 +127,48 @@ export function stepData(tf, opts = {}) {
     y.push(yk);
   }
   return { t, y };
+}
+
+const tryOr = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+
+export function poleZeroData(tf) {
+  const map = (c) => ({ re: c.re, im: c.im });
+  return { poles: tf.poles().map(map), zeros: tf.zeros().map(map) };
+}
+
+/**
+ * Marker/readout values for the three plots, reusing the existing solvers.
+ * Every field may be null when not applicable; the renderer omits missing markers.
+ */
+export function plotAnnotations(tf) {
+  const margins = tryOr(() => solveMargins(tf));
+  const bw = tryOr(() => bandwidth(tf));
+  const stab = tryOr(() => analyzeStability(tf, 1));
+  const ch = tryOr(() => characterizeTf(tf));
+
+  const bode = margins ? {
+    GM_dB: Number.isFinite(margins.GM) ? 20 * Math.log10(margins.GM) : Infinity,
+    PM_deg: margins.PM_deg,
+    omega_pc: margins.omega_pc,
+    omega_gc: margins.omega_gc,
+    omega_BW: bw,
+  } : { omega_BW: bw };
+
+  const nyquist = stab ? {
+    stable: stab.stable,
+    closedLoopRhpPoles: stab.closedLoopRhpPoles,
+    encirclements: stab.encirclements,
+  } : null;
+
+  let step = null;
+  if (ch) {
+    const m = ch.metrics;
+    step = {
+      finalValue: Number.isFinite(ch.dc_gain) ? ch.dc_gain : null,
+      overshootPct: m ? m.Mp * 100 : null,
+      peakTime: m ? m.t_p : null,
+      settling2pct: m ? m.t_s_2pct : null,
+    };
+  }
+  return { bode, nyquist, step };
 }
