@@ -61,7 +61,7 @@ export function attachHover(rootEl, pd) {
     const vb = (svg.getAttribute("viewBox") || "0 0 1 1").split(/\s+/).map(Number); // [0,0,W,H]
 
     const series = pickSeries(kind, pd);
-    if (!series) return;
+    if (!series || !series.x || !series.x.length) return;
 
     const clear = () => svg.querySelectorAll(".hov").forEach((n) => n.remove());
 

@@ -150,9 +150,11 @@ export class BlockDiagramCanvas {
         this.svg.addEventListener('mousedown', (e) => this.onMouseDown(e));
         this.svg.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.svg.addEventListener('mouseup', (e) => this.onMouseUp(e));
+        this.svg.addEventListener('mouseleave', () => { if (this.panning) { this.panning = null; } });
         this.svg.addEventListener('dblclick', (e) => this.onDblClick(e));
         this.svg.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
-        
+        window.addEventListener('resize', () => this.onResize());
+
         // Key listener for deleting selected components and rotating
         window.addEventListener('keydown', (e) => {
             if (!this.isEditingText()) {
@@ -230,6 +232,16 @@ export class BlockDiagramCanvas {
         if (this.viewBox) return;
         const r = this.svg.getBoundingClientRect();
         this.viewBox = { x: 0, y: 0, w: r.width || 800, h: r.height || 600 };
+    }
+
+    onResize() {
+        if (!this.viewBox) return;
+        const r = this.svg.getBoundingClientRect();
+        if (!r.width || !r.height) return;
+        // keep the world width, re-derive height from the new aspect so the
+        // viewBox aspect matches the element (no letterboxing / click drift)
+        this.viewBox = { ...this.viewBox, h: this.viewBox.w * (r.height / r.width) };
+        this.render();
     }
 
     getMouseCoords(e) {
