@@ -3,16 +3,20 @@
  * Electron main process script defining the standalone desktop window lifecycle.
  */
 
-const { app, BrowserWindow, ipcMain } = require('electron');
+const { app, BrowserWindow, ipcMain, screen } = require('electron');
 const path = require('path');
 const { exec } = require('child_process');
 
 function createWindow() {
+    // Never open larger than the screen's work area, or the bottom of the app
+    // (zoom controls, etc.) ends up below the screen and can't be reached.
+    const { width: areaW, height: areaH } = screen.getPrimaryDisplay().workAreaSize;
+
     const mainWindow = new BrowserWindow({
-        width: 1280,
-        height: 800,
-        minWidth: 1024,
-        minHeight: 600,
+        width: Math.min(1280, areaW),
+        height: Math.min(800, areaH),
+        minWidth: Math.min(1024, areaW),
+        minHeight: Math.min(600, areaH),
         backgroundColor: '#090d16', // Slate dark theme color
         webPreferences: {
             nodeIntegration: false,
@@ -24,6 +28,9 @@ function createWindow() {
 
     // Remove top menu bar for a sleek native desktop app layout
     mainWindow.removeMenu();
+
+    // Open maximized so the whole UI fits the work area on every screen size.
+    mainWindow.maximize();
 
     // Load local bundled index.html
     mainWindow.loadFile('index.html');
