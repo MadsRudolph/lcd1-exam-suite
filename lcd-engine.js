@@ -15,7 +15,13 @@ import { composeTfFromBode } from "./spike/solvers/p2.js";
 import { parseQuestion } from "./spike/smart-paste.js";
 import { matchOptions, applyStableRangeMatch } from "./spike/match.js";
 import { symbolicEquivTest } from "./symbolic/equiv.js";
+import { parseExprToTF } from "./symbolic/parse-expr.js";
+import { order as symOrder, systemType, staticGain } from "./symbolic/analysis.js";
+import { essStep, essRamp } from "./symbolic/ess.js";
 import { formByFn } from "./lcd-forms.js";
+
+// A RatFunc → readable string (denominator is 1 after normalization for a polynomial).
+const ratStr = (rf) => (rf === Infinity ? "∞" : rf.den.isConstant() ? rf.num.toString() : `(${rf.num.toString()}) / (${rf.den.toString()})`);
 
 // ---- formatting ----
 const fmt = (x) => {
@@ -171,6 +177,20 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         const r = analyzeStability(parseTf(inp.G), fnum(inp.K) ?? 1);
         out.latex = `\\text{${r.stable ? "stable" : "UNSTABLE"}}\\ (Z=${r.closedLoopRhpPoles})`;
         out.summary = [["open-loop RHP poles", r.openLoopRhpPoles], ["closed-loop RHP poles", r.closedLoopRhpPoles], ["stable?", r.stable ? "yes" : "no"]];
+        break;
+      }
+      case "symbolic_analysis": {
+        const L = parseExprToTF(inp.L);
+        const N = systemType(L);
+        const ord = symOrder(L);
+        out.latex = `\\text{type } ${N},\\quad \\text{order } ${ord}`;
+        out.summary = [
+          ["order", String(ord)],
+          ["type (N)", String(N)],
+          ["K₀ = lim sᴺ·L", ratStr(staticGain(L))],
+          ["e_ss (unit step)", ratStr(essStep(L))],
+          ["e_ss (unit ramp)", ratStr(essRamp(L))],
+        ];
         break;
       }
       case "symbolic_equiv": {

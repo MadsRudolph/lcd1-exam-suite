@@ -188,6 +188,62 @@ export class MPoly {
         return out;
     }
 
+    // Evaluate every variable to a Rational (map: { name -> Rational|number|string }),
+    // returning the resulting constant Rational. Missing variables throw, so callers
+    // must supply a value for every symbol present.
+    evalAt(map) {
+        const val = (n) => {
+            const v = map[n];
+            if (v === undefined) throw new Error(`evalAt: no value for symbol '${n}'`);
+            return v instanceof Rational ? v : Rational.parse(String(v));
+        };
+        let acc = Rational.ZERO;
+        for (const [k, c] of this.terms) {
+            let term = c;
+            for (const [n, e] of monoFromKey(k)) {
+                const x = val(n);
+                for (let i = 0; i < e; i++) term = term.mul(x);
+            }
+            acc = acc.add(term);
+        }
+        return acc;
+    }
+
+    // Substitute a subset of variables with constant values (Rational|number|string),
+    // leaving the others symbolic. Returns an MPoly in the remaining variables.
+    substitute(map) {
+        let out = MPoly.ZERO;
+        for (const [k, c] of this.terms) {
+            const mono = monoFromKey(k);
+            let coeff = c;
+            const rest = new Map();
+            for (const [n, e] of mono) {
+                if (Object.prototype.hasOwnProperty.call(map, n)) {
+                    const v = map[n] instanceof Rational ? map[n] : Rational.parse(String(map[n]));
+                    for (let i = 0; i < e; i++) coeff = coeff.mul(v);
+                } else {
+                    rest.set(n, e);
+                }
+            }
+            out = out.add(new MPoly(new Map([[keyFromMono(rest), coeff]])));
+        }
+        return out;
+    }
+
+    // Partial derivative with respect to one variable (polynomial rule).
+    partial(varName) {
+        const m = new Map();
+        for (const [k, c] of this.terms) {
+            const mono = monoFromKey(k);
+            const e = mono.get(varName) || 0;
+            if (e === 0) continue;
+            mono.set(varName, e - 1);
+            const key = keyFromMono(mono);
+            m.set(key, (m.get(key) || Rational.ZERO).add(c.mul(Rational.of(e))));
+        }
+        return new MPoly(m);
+    }
+
     // lex-leading Rational coefficient (over all terms) — used to normalise to monic.
     leadingRational() {
         if (this.isZero()) return Rational.ONE;

@@ -162,6 +162,14 @@ export const FORMS = [
     explanation: "Closed-loop stability of 1 + K·G: open-loop and closed-loop RHP-pole counts (handles RHP plants).",
   },
   {
+    pattern: "Analysis", title: "Symbolic loop analysis", variant: "type · order · K₀ · ess (in symbols)", fn: "symbolic_analysis",
+    resultKind: "INFO",
+    fields: [
+      { name: "L", label: "Loop gain L(s) = C·G·H (parameters kept symbolic)", kind: "str", placeholder: "Kp*b*c/(s*(tau*s+1))", tooltip: "The open-loop / loop-gain transfer function in s with literal parameters (a, b, K, Kp, tau…). Returns system type, order, static loop gain K₀, and the steady-state error to a step and a ramp — all in symbols." },
+    ],
+    explanation: "System type (poles at the origin), order, static loop gain K₀ = lim s^N·L, and the steady-state error to a unit step (1/(1+K₀) for type 0, 0 for type ≥ 1) and unit ramp (1/Kv) — computed symbolically.",
+  },
+  {
     pattern: "Analysis", title: "Symbolic equivalence", variant: "are these answers algebraically equal?", fn: "symbolic_equiv",
     resultKind: "INFO",
     fields: [
