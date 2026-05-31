@@ -96,3 +96,88 @@ function fmtTick(v) {
   if (a !== 0 && (a < 1e-2 || a >= 1e4)) return v.toExponential(1);
   return String(Number(v.toFixed(2)));
 }
+
+export function bodePlot(data, ann = {}) {
+  const mag = linePlot({
+    series: [{ x: data.omega, y: data.magDb, color: "#60a5fa" }],
+    xScale: "log", yLabel: "Magnitude (dB)", title: "Bode Diagram",
+    width: 460, height: 180,
+    hlines: ann.omega_BW != null ? [] : [],
+    vlines: [
+      ...(ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : []),
+      ...(ann.omega_pc ? [{ x: ann.omega_pc, color: "#f59e0b" }] : []),
+      ...(ann.omega_BW ? [{ x: ann.omega_BW, color: "#a78bfa" }] : []),
+    ],
+    readout: [
+      ann.GM_dB != null ? `GM ${fmt(ann.GM_dB)} dB` : null,
+      ann.PM_deg != null ? `PM ${fmt(ann.PM_deg)} deg` : null,
+      ann.omega_BW != null ? `BW ${fmt(ann.omega_BW)} rad/s` : null,
+    ].filter(Boolean),
+  });
+  const ph = linePlot({
+    series: [{ x: data.omega, y: data.phaseDeg, color: "#60a5fa" }],
+    xScale: "log", xLabel: "Frequency (rad/s)", yLabel: "Phase (deg)",
+    width: 460, height: 160,
+    vlines: ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : [],
+  });
+  return `<div>${mag}${ph}</div>`;
+}
+
+export function nyquistPlot(data, ann = {}) {
+  const verdict = ann.stable == null ? [] : [ann.stable ? "stable" : "unstable",
+    ann.encirclements != null ? `encirclements ${ann.encirclements}` : null].filter(Boolean);
+  return linePlot({
+    series: [
+      { x: data.re, y: data.im, color: "#60a5fa" },
+      { x: data.re, y: data.im.map((v) => -v), color: "#60a5fa", dash: "4 3" },
+    ],
+    xScale: "linear", xLabel: "Re", yLabel: "Im", title: "Nyquist",
+    width: 320, height: 320,
+    markers: [{ x: -1, y: 0, label: "-1", color: "#ef4444" }],
+    readout: verdict,
+  });
+}
+
+export function stepPlot(data, ann = {}) {
+  const markers = [];
+  if (ann.peakTime != null && ann.finalValue != null && ann.overshootPct != null) {
+    markers.push({ x: ann.peakTime, y: ann.finalValue * (1 + ann.overshootPct / 100), label: `Mp ${fmt(ann.overshootPct)}%` });
+  }
+  return linePlot({
+    series: [{ x: data.t, y: data.y, color: "#c0392b" }],
+    xScale: "linear", xLabel: "Time (s)", yLabel: "Amplitude", title: "Step Response",
+    width: 460, height: 260,
+    hlines: ann.finalValue != null ? [{ y: ann.finalValue, color: "#64748b" }] : [],
+    vlines: ann.settling2pct != null ? [{ x: ann.settling2pct, color: "#a78bfa" }] : [],
+    markers,
+    readout: [
+      ann.overshootPct != null ? `overshoot ${fmt(ann.overshootPct)}%` : null,
+      ann.peakTime != null ? `t_p ${fmt(ann.peakTime)} s` : null,
+      ann.settling2pct != null ? `t_s ${fmt(ann.settling2pct)} s` : null,
+      ann.finalValue != null ? `final ${fmt(ann.finalValue)}` : null,
+    ].filter(Boolean),
+  });
+}
+
+export function poleZeroPlot(data) {
+  const xs = [...data.poles, ...data.zeros].map((c) => c.re).concat([0]);
+  const ys = [...data.poles, ...data.zeros].map((c) => c.im).concat([0]);
+  const base = linePlot({
+    series: [{ x: xs, y: ys, color: "transparent" }],
+    xScale: "linear", xLabel: "Real", yLabel: "Imag", title: "Pole-Zero Map",
+    width: 320, height: 280,
+    markers: [
+      ...data.poles.map((p) => ({ x: p.re, y: p.im, label: "x", color: "#ef4444" })),
+      ...data.zeros.map((z) => ({ x: z.re, y: z.im, label: "o", color: "#10b981" })),
+    ],
+    vlines: [{ x: 0, color: "#64748b" }],
+    hlines: [{ y: 0, color: "#64748b" }],
+  });
+  return base;
+}
+
+function fmt(x) {
+  if (x === Infinity) return "inf";
+  if (x == null || Number.isNaN(x)) return "-";
+  return String(Number(x.toPrecision(3)));
+}

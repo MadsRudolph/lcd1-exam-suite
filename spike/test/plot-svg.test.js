@@ -25,3 +25,30 @@ test("linePlot tolerates non-finite samples without emitting NaN", () => {
   });
   assert.ok(!/NaN/.test(svg), "no NaN in output");
 });
+
+import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "../../plot-svg.js";
+
+const bode = { omega: [0.1, 1, 10, 100], magDb: [20, 6, -10, -40], phaseDeg: [-10, -45, -135, -175] };
+const nyq = { re: [1, 0.5, 0, -0.2], im: [0, -0.4, -0.5, -0.1], omega: [0.1, 1, 10, 100] };
+const step = { t: [0, 0.5, 1, 2, 3], y: [0, 0.8, 1.3, 1.0, 1.0] };
+const pz = { poles: [{ re: -1, im: 2 }, { re: -1, im: -2 }], zeros: [{ re: -3, im: 0 }] };
+
+test("bodePlot returns two stacked svg panels", () => {
+  const svg = bodePlot(bode, { GM_dB: 7.6, PM_deg: 23, omega_pc: 1.7, omega_gc: 1.1, omega_BW: 2 });
+  assert.ok(svg.includes("<svg"), "contains svg");
+  assert.ok(/Magnitude|dB/.test(svg), "magnitude panel labelled");
+  assert.ok(/Phase/.test(svg), "phase panel labelled");
+});
+
+test("nyquistPlot marks the -1 point and shows a verdict", () => {
+  const svg = nyquistPlot(nyq, { stable: true, encirclements: 0 });
+  assert.ok(svg.includes("<svg"));
+  assert.ok(/stable/i.test(svg), "verdict in readout");
+});
+
+test("stepPlot and poleZeroPlot return svg without NaN", () => {
+  const s1 = stepPlot(step, { finalValue: 1, overshootPct: 30, peakTime: 1, settling2pct: 2.5 });
+  const s2 = poleZeroPlot(pz);
+  assert.ok(s1.includes("<svg") && !/NaN/.test(s1));
+  assert.ok(s2.includes("<svg") && !/NaN/.test(s2));
+});
