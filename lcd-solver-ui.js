@@ -4,6 +4,8 @@
 import { FORMS, formByFn } from "./lcd-forms.js";
 import { runSolver, routeQuestion } from "./lcd-engine.js";
 
+const VERSION = "v1.1.1";
+
 const SAMPLE = `A P-controller with gain KP is applied and the loop is closed with unit feedback.
 If the steady state error ess = 0.555, the proportional gain KP is approximately:
 a) KP = 1
@@ -43,7 +45,9 @@ function init() {
   const mkTab = (t) => el("button", { style:
     `border:none;background:transparent;color:${SUB};font:600 12px/1 'Outfit',sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;transition:all .15s;` }, t);
   const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver");
-  bar.append(tabBDR, tabLCD);
+  const ver = el("span", { title: "App version (updates on Check for Updates)", style:
+    `align-self:center;color:${SUB};font:600 10px 'Outfit',sans-serif;padding:0 8px 0 4px;opacity:.7;` }, VERSION);
+  bar.append(tabBDR, tabLCD, ver);
   document.body.appendChild(bar);
 
   // ---- panel ----
