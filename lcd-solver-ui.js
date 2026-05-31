@@ -9,6 +9,7 @@ import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
 import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { parseTf } from "./spike/numeric/parse.js";
 import { attachHover } from "./plot-interact.js";
+import { matchOptions } from "./spike/match.js";
 
 const VERSION = "v1.2.1";
 
@@ -95,6 +96,31 @@ function analyzeAndRender() {
 
   renderPlotsInto(state.board, src);   // implemented in Task 5
   renderDesignStrip(state.board, src); // implemented in Task 6
+
+  const matchWrap = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:6px;" });
+  const sel = el("select", { style: `background:rgba(30,41,59,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:6px;font:12px 'Inter';width:max-content;` });
+  const quantities = {
+    "DC gain (dB)": a.dcGain_dB, "PM (°)": a.margins?.PM_deg, "GM (dB)": a.margins?.GM_dB,
+    "ω_c": a.margins?.omega_gc, "DC gain (linear)": a.dcGain, "bandwidth": a.bandwidth,
+  };
+  Object.keys(quantities).forEach((k) => sel.append(el("option", { value: k }, k)));
+  const optsTa = el("textarea", { rows: "3", placeholder: "paste the 5 options, one per line", style: `background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:12px 'JetBrains Mono';` });
+  const mbtn = el("button", { style: "background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:7px 12px;font:600 12px 'Outfit';cursor:pointer;width:max-content;" }, "Match options");
+  const mout = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
+  mbtn.onclick = () => {
+    const target = quantities[sel.value];
+    mout.innerHTML = "";
+    if (target == null || !Number.isFinite(target)) { mout.innerHTML = `<span style="color:#f59e0b">that read-out isn't a finite number to match.</span>`; return; }
+    const opts = matchOptions({ value: target, kind: "NUMBER" }, optsTa.value.trim());
+    opts.forEach((o) => {
+      const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:7px;border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};font:12px 'JetBrains Mono';` });
+      const v = el("span", {}); v.textContent = o.raw_text;
+      const tag = el("span", { style: `color:${o.flag === "match" ? "#10b981" : SUB};` }); tag.textContent = o.flag === "match" ? "✓ match" : (o.note || "");
+      row.append(v, tag); mout.append(row);
+    });
+  };
+  matchWrap.append(sectionLabel("Match the exam's options against a read-out"), sel, optsTa, mbtn, mout);
+  state.board.append(matchWrap);
 }
 
 function renderPlotsInto(parent, src) {
@@ -221,6 +247,18 @@ function init() {
   left.append(sysBox, echo);
   const board = el("div", { id: "lcd-board", style: "display:flex;flex-direction:column;gap:12px;margin-top:6px;" });
   left.append(board);
+
+  const calcWrap = el("div", { style: "margin-top:14px;" });
+  calcWrap.append(el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;` }, "Calculators (not based on one G)"));
+  const calcChips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;" });
+  const calcBody = el("div", {});
+  for (const f of formsInGroup("calc")) {
+    const chip = el("button", { style: `background:#172033;color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, f.title.replace(/^P\d+ — |^Analysis — /, ""));
+    chip.onclick = () => showGoal(f, calcBody, "");
+    calcChips.append(chip);
+  }
+  calcWrap.append(calcChips, calcBody);
+  left.append(calcWrap);
 
   state.sysBox = sysBox; state.echo = echo; state.board = board;
   sysBox.addEventListener("input", () => analyzeAndRender());
