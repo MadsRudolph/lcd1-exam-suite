@@ -164,7 +164,9 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         out.tf = inp.G;
         const c = characterizeTf(parseTf(inp.G));
         const polesStr = c.poles.map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ");
-        out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)]];
+        out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)],
+          ["y(0⁺) step (init. value)", plain(c.initial_value)],
+          ["y(∞) step (final value)", plain(c.dc_gain)]];
         if (c.is_second_order) {
           out.latex = `\\zeta=${fmt(c.zeta)},\\ \\omega_n=${fmt(c.omega_n)}`;
           out.summary.push(["ζ", plain(c.zeta)], ["ω_n", plain(c.omega_n)]);

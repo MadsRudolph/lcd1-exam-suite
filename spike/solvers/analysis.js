@@ -61,11 +61,24 @@ export function analyzeStability(tf, K = 1) {
 }
 
 /** Characterize a numeric TF: poles/zeros/DC gain, plus 2nd-order specs if applicable. */
+// Initial value of the step response, y(0⁺) = lim_{s→∞} G(s) (initial-value
+// theorem applied to Y = G/s). 0 when strictly proper, the leading-coefficient
+// ratio when bi-proper, ∞ when improper.
+export function initialValue(tf) {
+  const num = polyTrim(tf.num.slice());
+  const den = polyTrim(tf.den.slice());
+  const nd = num.length - 1, dd = den.length - 1;
+  if (nd < dd) return 0;
+  if (nd > dd) return Infinity;
+  return num[0] / den[0];
+}
+
 export function characterizeTf(tf) {
   const poles = tf.poles();
   const zeros = tf.zeros();
   const integrator = poles.some((p) => p.abs() < TOL);
   const dc_gain = integrator ? NaN : tf.dcGain();
+  const initial_value = initialValue(tf);
   const den = polyTrim(tf.den.slice());
 
   if (den.length === 3) {
@@ -73,7 +86,7 @@ export function characterizeTf(tf) {
     const omega_n = Math.sqrt(a0 / a2);
     const zeta = a1 / a2 / (2 * omega_n);
     const metrics = zeta > 0 && zeta < 1 ? solve2ndOrder({ zeta, omega_n }) : null;
-    return { is_second_order: true, zeta, omega_n, poles, zeros, dc_gain, metrics };
+    return { is_second_order: true, zeta, omega_n, poles, zeros, dc_gain, initial_value, metrics };
   }
-  return { is_second_order: false, poles, zeros, dc_gain };
+  return { is_second_order: false, poles, zeros, dc_gain, initial_value };
 }

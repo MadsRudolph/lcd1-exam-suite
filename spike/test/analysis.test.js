@@ -4,7 +4,21 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { approxRel, approxAbs } from "../lib/assert.js";
 import { parseTf } from "../numeric/parse.js";
-import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from "../solvers/analysis.js";
+import { bandwidth, dominantSettling, analyzeStability, characterizeTf, initialValue } from "../solvers/analysis.js";
+
+test("initial value (E25 Q17): bi-proper TF → leading-coefficient ratio 1.5", () => {
+  // y(0+) = lim_{s→∞} G(s); deg(num)=deg(den)=3, leading coeffs 1.5/1
+  approxRel(initialValue(parseTf("(1.5*s**3+2*s**2+3*s-1)/(s**3+2*s**2+3*s+1)")), 1.5, 1e-9, "y(0+)");
+});
+
+test("initial value: strictly-proper TF → 0", () => {
+  approxAbs(initialValue(parseTf("5/(s**2+2*s+10)")), 0, 1e-12, "y(0+)");
+});
+
+test("initial value is reported by characterizeTf", () => {
+  const c = characterizeTf(parseTf("(2*s+1)/(s+1)"));
+  approxRel(c.initial_value, 2.0, 1e-9, "y(0+)=2");
+});
 
 test("bandwidth of 1/(s+1) is 1 rad/s", () => {
   approxRel(bandwidth(parseTf("1/(s+1)")), 1.0, 1e-3, "BW");
