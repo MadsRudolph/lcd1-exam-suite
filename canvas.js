@@ -63,6 +63,7 @@ export class BlockDiagramCanvas {
         this.draggedConnection = null;
         this.activeWire = null; // Temporary wire during dragging
         this.wireTapCandidate = null; // Pending take-off branch from a grabbed wire
+        this.viewBox = null; // {x,y,w,h} in world units; lazily initialised from the svg size
 
         this.dragOffset = { x: 0, y: 0 };
         this.nextId = 1;
@@ -223,12 +224,16 @@ export class BlockDiagramCanvas {
         }
     }
 
+    ensureViewBox() {
+        if (this.viewBox) return;
+        const r = this.svg.getBoundingClientRect();
+        this.viewBox = { x: 0, y: 0, w: r.width || 800, h: r.height || 600 };
+    }
+
     getMouseCoords(e) {
+        this.ensureViewBox();
         const rect = this.svg.getBoundingClientRect();
-        return {
-            x: e.clientX - rect.left,
-            y: e.clientY - rect.top
-        };
+        return screenToWorld(e.clientX, e.clientY, rect, this.viewBox);
     }
 
     onMouseDown(e) {
@@ -348,8 +353,8 @@ export class BlockDiagramCanvas {
         // Handle active node dragging
         if (this.draggedNode) {
             // Keep on SVG bounds
-            this.draggedNode.x = Math.max(20, Math.min(this.svg.clientWidth - 20, coords.x - this.dragOffset.x));
-            this.draggedNode.y = Math.max(20, Math.min(this.svg.clientHeight - 20, coords.y - this.dragOffset.y));
+            this.draggedNode.x = Math.max(-100000, Math.min(100000, coords.x - this.dragOffset.x));
+            this.draggedNode.y = Math.max(-100000, Math.min(100000, coords.y - this.dragOffset.y));
             
             // Reset custom waypoints of connected lines to avoid weird stretching
             this.connections.forEach(c => {
@@ -772,7 +777,11 @@ export class BlockDiagramCanvas {
 
     render() {
         this.svg.innerHTML = '';
-        
+
+        this.ensureViewBox();
+        const vb = this.viewBox;
+        this.svg.setAttribute('viewBox', `${vb.x} ${vb.y} ${vb.w} ${vb.h}`);
+
         // Define grid background
         const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
         defs.innerHTML = `
@@ -783,8 +792,10 @@ export class BlockDiagramCanvas {
         this.svg.appendChild(defs);
 
         const gridRect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-        gridRect.setAttribute('width', '100%');
-        gridRect.setAttribute('height', '100%');
+        gridRect.setAttribute('x', vb.x);
+        gridRect.setAttribute('y', vb.y);
+        gridRect.setAttribute('width', vb.w);
+        gridRect.setAttribute('height', vb.h);
         gridRect.setAttribute('fill', 'url(#grid)');
         this.svg.appendChild(gridRect);
 
@@ -792,10 +803,10 @@ export class BlockDiagramCanvas {
         if (this.blueprintImgData) {
             const blueprint = document.createElementNS('http://www.w3.org/2000/svg', 'image');
             blueprint.setAttribute('id', 'canvas-blueprint');
-            blueprint.setAttribute('x', '0');
-            blueprint.setAttribute('y', '0');
-            blueprint.setAttribute('width', '100%');
-            blueprint.setAttribute('height', '100%');
+            blueprint.setAttribute('x', vb.x);
+            blueprint.setAttribute('y', vb.y);
+            blueprint.setAttribute('width', vb.w);
+            blueprint.setAttribute('height', vb.h);
             blueprint.setAttribute('opacity', this.blueprintOpacity);
             blueprint.setAttribute('style', 'pointer-events: none;');
             blueprint.setAttribute('href', this.blueprintImgData);
