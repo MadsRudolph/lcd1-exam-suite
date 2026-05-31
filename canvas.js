@@ -64,6 +64,7 @@ export class BlockDiagramCanvas {
         this.activeWire = null; // Temporary wire during dragging
         this.wireTapCandidate = null; // Pending take-off branch from a grabbed wire
         this.viewBox = null; // {x,y,w,h} in world units; lazily initialised from the svg size
+        this.panning = null; // active background pan: {startClientX, startClientY, startVb}
 
         this.dragOffset = { x: 0, y: 0 };
         this.nextId = 1;
@@ -150,6 +151,7 @@ export class BlockDiagramCanvas {
         this.svg.addEventListener('mousemove', (e) => this.onMouseMove(e));
         this.svg.addEventListener('mouseup', (e) => this.onMouseUp(e));
         this.svg.addEventListener('dblclick', (e) => this.onDblClick(e));
+        this.svg.addEventListener('wheel', (e) => this.onWheel(e), { passive: false });
         
         // Key listener for deleting selected components and rotating
         window.addEventListener('keydown', (e) => {
@@ -234,6 +236,17 @@ export class BlockDiagramCanvas {
         this.ensureViewBox();
         const rect = this.svg.getBoundingClientRect();
         return screenToWorld(e.clientX, e.clientY, rect, this.viewBox);
+    }
+
+    onWheel(e) {
+        e.preventDefault();
+        this.ensureViewBox();
+        const rect = this.svg.getBoundingClientRect();
+        const pt = screenToWorld(e.clientX, e.clientY, rect, this.viewBox);
+        const factor = e.deltaY > 0 ? 1.1 : 1 / 1.1; // down = zoom out
+        const baseW = rect.width || 800;
+        this.viewBox = zoomAroundPoint(this.viewBox, pt, factor, { minW: baseW / 8, maxW: baseW * 10 });
+        this.render();
     }
 
     onMouseDown(e) {
@@ -341,13 +354,32 @@ export class BlockDiagramCanvas {
             return;
         }
 
-        // 4. Clicked blank canvas
+        // 4. Clicked blank canvas — deselect and begin panning
         this.selectedElement = null;
+        this.ensureViewBox();
+        this.panning = {
+            startClientX: e.clientX,
+            startClientY: e.clientY,
+            startVb: { ...this.viewBox },
+        };
         this.render();
         this.onStateChange();
     }
 
     onMouseMove(e) {
+        if (this.panning) {
+            const rect = this.svg.getBoundingClientRect();
+            const dxWorld = (e.clientX - this.panning.startClientX) / rect.width * this.panning.startVb.w;
+            const dyWorld = (e.clientY - this.panning.startClientY) / rect.height * this.panning.startVb.h;
+            this.viewBox = {
+                x: this.panning.startVb.x - dxWorld,
+                y: this.panning.startVb.y - dyWorld,
+                w: this.panning.startVb.w,
+                h: this.panning.startVb.h,
+            };
+            this.render();
+            return;
+        }
         const coords = this.getMouseCoords(e);
 
         // Handle active node dragging
@@ -478,6 +510,7 @@ export class BlockDiagramCanvas {
     }
 
     onMouseUp(e) {
+        if (this.panning) { this.panning = null; return; }
         // A wire-tap candidate that never turned into a drag = a plain click:
         // select the wire (so it can be deleted), don't branch.
         if (this.wireTapCandidate && !this.activeWire) {
