@@ -7,6 +7,8 @@
  */
 
 import { TransferFunction, Polynomial } from './math-engine.js';
+import { solveExact } from './symbolic/solve-exact.js';
+import { renderSymTF } from './symbolic/render.js';
 
 const SOURCE_TYPES = ['input', 'disturbance'];
 
@@ -29,7 +31,18 @@ export function transferFunction(nodes, connections, sourceId, sinkId) {
 
     if (hasSymbolic) {
         const r = solveSymbolically(nodes, connections, sourceId, sinkId);
-        return { ...r, tf: null };
+        const symtf = solveExact(nodes, connections, sourceId, sinkId);
+        const rendered = renderSymTF(symtf);
+        return {
+            initialEquations: r.initialEquations,
+            steps: r.steps,
+            tf: null,
+            symtf,
+            finalTransferFunction: {
+                toKaTeX: () => rendered.toKaTeX(),
+                toFormulaString: () => rendered.toFormulaString(),
+            },
+        };
     }
 
     // Exact numeric final TF.
@@ -121,7 +134,22 @@ function negateResult(result) {
             }
         };
     }
-    // Symbolic: present -(measured) tidily (no -(-...) or -(0)).
+    // Symbolic with an exact SymTF: negate it exactly (no string wrapping).
+    if (result.symtf) {
+        const neg = result.symtf.neg().simplify();
+        const rendered = renderSymTF(neg);
+        return {
+            initialEquations: [],
+            steps: [],
+            tf: null,
+            symtf: neg,
+            finalTransferFunction: {
+                toKaTeX: () => rendered.toKaTeX(),
+                toFormulaString: () => rendered.toFormulaString(),
+            },
+        };
+    }
+    // Fallback (no tf and no symtf): present -(measured) tidily.
     const negateStr = (s, isLatex) => {
         const t = s.trim();
         if (t === '0') return '0';
