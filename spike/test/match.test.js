@@ -32,6 +32,13 @@ test("unparseable option is flagged", () => {
   assert.equal(o[1].flag, "unparseable");
 });
 
+test("far-off computed value crowns NO match (avoids false confidence)", () => {
+  // Q19 case: computed 1.20 vs options {3.4154, 10.67, 36, 0.293, -10.67}.
+  // Nearest is 0.293 but ~75% off -> must NOT be flagged "match".
+  const o = matchOptions({ value: 1.2004, kind: "NUMBER" }, "3.4154\n10.67\n36\n0.293\n-10.67");
+  assert.ok(!o.some((x) => x.flag === "match"), "nothing should be crowned a match");
+});
+
 test("stable-range flags in-range option (90, inf)", () => {
   const opts = ["100", "0.02", "-0.0111"].map((t) => ({ raw_text: t, flag: "no_match" }));
   applyStableRangeMatch("solve_stable_K_range", [90.0, Infinity], opts);

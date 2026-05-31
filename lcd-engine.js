@@ -171,16 +171,23 @@ function tfResult(out, G) {
   out.summary = [["poles", G.poles().map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ")]];
   try { out.summary.push(["DC gain", plain(G.dcGain())]); } catch { /* integrator */ }
 }
+function noMatchNote(out) {
+  if (out.options && out.options.length && !out.options.some((o) => o.flag === "match" || o.flag === "also_plausible")) {
+    out.note = "The computed value isn't close to any listed option — double-check your inputs (units, α, N_i, the read-off values).";
+  }
+}
 function numResult(out, label, value, optionsText) {
   out.latex = `${label} = ${fmt(value)}`;
   out.summary = [[label, plain(value)]];
   out.options = optionsText ? matchOptions({ value, kind: "NUMBER" }, optionsText) : null;
+  noMatchNote(out);
 }
 function dictResult(out, dict, key, optionsText) {
   out.latex = `${key.replace(/_/g, "\\_")} = ${fmt(dict[key])}`;
   out.summary = Object.entries(dict).map(([k, v]) => [k, plain(v)]);
   out.options = optionsText ? matchOptions({ value: dict, kind: "DICT" }, optionsText, key) : null;
   out.matchedKey = key;
+  noMatchNote(out);
 }
 function matchTfOpts(tf, optionsText) {
   return optionsText ? matchOptions({ value: tf, kind: "TF" }, optionsText) : null;

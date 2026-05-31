@@ -42,11 +42,23 @@ function matchNumber(target, lines) {
   const parseable = options.filter((o) => o.distance !== null);
   if (parseable.length) {
     const winner = parseable.reduce((a, b) => (b.distance < a.distance ? b : a));
-    winner.flag = "match";
-    for (const o of parseable) if (o !== winner && o.distance < 0.01) o.flag = "also_plausible";
+    // Only crown a confident match when the closest option is actually close.
+    // Otherwise the computed value disagrees with every option (usually a wrong
+    // input) and a falsely confident "match" would be misleading.
+    if (winner.distance <= MATCH_TOL) {
+      winner.flag = "match";
+      for (const o of parseable) if (o !== winner && o.distance < 0.01) o.flag = "also_plausible";
+    } else {
+      winner.note = `closest, but ${(winner.distance * 100).toFixed(0)}% off`;
+    }
   }
   return options;
 }
+
+// A computed value within this relative distance of an option counts as a match.
+// Exam options are rounded (typically <5% off the exact answer); a far larger gap
+// means the inputs are wrong, not that this is the answer.
+export const MATCH_TOL = 0.15;
 
 function matchDictAuto(dict, lines) {
   const items = Object.entries(dict).filter(
