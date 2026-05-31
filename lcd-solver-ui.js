@@ -468,10 +468,28 @@ function doPaste(text, selectForm, optEl, matchSel, matchWrap) {
 }
 
 // Tabbed Step | Bode | Nyquist | Pole-Zero panel from a buildPlotData() object.
-function renderPlotPanel(pd) {
+// An optional image overlay lets the student drop the exam's own plot behind the
+// generated one and fade between them to confirm a reconstructed G(s) matches.
+function renderPlotPanel(pd, defaultTab = "Step") {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
-  const tabs = el("div", { style: "display:flex;gap:6px;" });
-  const view = el("div", { style: "overflow-x:auto;" });
+  const tabs = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;" });
+
+  // image overlay behind the SVG, controlled from the tab row
+  const fileBtn = el("label", { title: "load a screenshot of the exam's plot to compare against",
+    style: `background:rgba(30,41,59,0.6);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, "⧉ Overlay exam plot");
+  const fileInput = el("input", { type: "file", accept: "image/*", style: "display:none;" });
+  fileBtn.append(fileInput);
+  const opacity = el("input", { type: "range", min: "0", max: "100", value: "45", title: "overlay opacity",
+    style: "display:none;width:90px;accent-color:#6366f1;" });
+  const clearBtn = el("button", { title: "remove overlay", style:
+    `display:none;background:transparent;color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 9px;font:600 11px 'Outfit';cursor:pointer;` }, "✕");
+
+  const view = el("div", { style: "position:relative;overflow-x:auto;" });
+  const imgLayer = el("img", { alt: "", style:
+    "position:absolute;inset:0;width:100%;height:auto;opacity:0.45;display:none;pointer-events:none;z-index:0;" });
+  const svgLayer = el("div", { style: "position:relative;z-index:1;" });
+  view.append(imgLayer, svgLayer);
+
   const views = {
     Step: () => stepPlot(pd.step, pd.annotations.step || {}),
     Bode: () => bodePlot(pd.bode, pd.annotations.bode || {}),
@@ -479,19 +497,39 @@ function renderPlotPanel(pd) {
     "Pole-Zero": () => poleZeroPlot(pd.poleZero),
   };
   const show = (name) => {
-    view.innerHTML = views[name](); // generated SVG string — safe, no user markup
-    attachHover(view, pd);
-    [...tabs.children].forEach((b) => { b.style.opacity = b.textContent === name ? "1" : "0.55"; });
+    svgLayer.innerHTML = views[name](); // generated SVG string — safe, no user markup
+    attachHover(svgLayer, pd);
+    [...tabs.querySelectorAll("button[data-tab]")].forEach((b) => { b.style.opacity = b.dataset.tab === name ? "1" : "0.55"; });
   };
   for (const name of Object.keys(views)) {
-    const b = el("button", { style:
+    const b = el("button", { "data-tab": name, style:
       `background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);` +
       `border-radius:8px;padding:6px 12px;font:600 11px 'Outfit';cursor:pointer;` }, name);
     b.onclick = () => show(name);
     tabs.append(b);
   }
+  tabs.append(fileBtn, opacity, clearBtn);
+
+  fileInput.onchange = () => {
+    const f = fileInput.files && fileInput.files[0];
+    if (!f) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      imgLayer.src = reader.result;
+      imgLayer.style.display = "block";
+      opacity.style.display = "inline-block";
+      clearBtn.style.display = "inline-block";
+    };
+    reader.readAsDataURL(f);
+  };
+  opacity.oninput = () => { imgLayer.style.opacity = String(Number(opacity.value) / 100); };
+  clearBtn.onclick = () => {
+    imgLayer.removeAttribute("src"); imgLayer.style.display = "none";
+    opacity.style.display = "none"; clearBtn.style.display = "none"; fileInput.value = "";
+  };
+
   wrap.append(tabs, view);
-  show("Step");
+  show(views[defaultTab] ? defaultTab : "Step");
   return wrap;
 }
 
@@ -541,7 +579,7 @@ function renderResults(body, res) {
   }
 
   if (res.note) body.append(el("div", { style: `color:#f59e0b;font:13px 'Inter';line-height:1.5;` }, res.note));
-  if (res.plotData) body.append(renderPlotPanel(res.plotData));
+  if (res.plotData) body.append(renderPlotPanel(res.plotData, res.plotDefaultTab));
 
   if (res.tf && !res.plotData) {
     const bar = el("div", { style: "display:flex;gap:6px;margin-top:6px;" });

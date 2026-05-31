@@ -104,6 +104,26 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         out.options = matchTfOpts(c.tf, optionsText);
         break;
       }
+      case "bode_readoff": {
+        const c = composeTfFromBode({ dc_gain_dB: Number(inp.dc_gain_dB), corners: ftuples(inp.corners), phase_events: ftuples(inp.phase_events) });
+        const poles = c.tf.poles();
+        const order = poles.length;
+        const type = poles.filter((p) => p.abs() < 1e-6).length;
+        const m = solveMargins(c.tf);
+        out.latex = tfLatex(c.tf.num, c.tf.den);
+        out.summary = [
+          ["type", String(type)],
+          ["order", String(order)],
+          ["GM", plain(m.GM)],
+          ["GM (dB)", Number.isFinite(m.GM) ? plain(m.GM_dB) : "∞"],
+          ["PM (°)", plain(m.PM_deg)],
+          ["ω_c = ω_gc", plain(m.omega_gc)],
+          ["ω_π = ω_pc", plain(m.omega_pc)],
+        ];
+        out.plotData = buildPlotData(c.tf); // draws the reconstructed Bode to compare with the exam figure
+        out.plotDefaultTab = "Bode";
+        break;
+      }
       case "solve_stable_K_range": {
         const { low, high } = solveStableKRange(parseTf(inp.G));
         out.latex = `K \\in (${fmt(low)},\\ ${fmt(high)})`;

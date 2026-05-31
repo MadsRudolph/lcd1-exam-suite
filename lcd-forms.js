@@ -37,6 +37,16 @@ export const FORMS = [
     ],
     explanation: "Reconstruct G(s) from Bode magnitude-slope corners and phase events.",
   },
+  {
+    pattern: "P2", title: "Bode read-off → margins", variant: "corners/phase → type · order · GM · PM · ω_c · ω_π", fn: "bode_readoff",
+    resultKind: "INFO",
+    fields: [
+      { name: "dc_gain_dB", label: "DC gain (dB) — low-frequency magnitude", kind: "float", default: "0", placeholder: "6.02", tooltip: "The magnitude of the open-loop Bode plot at low frequency, in dB." },
+      { name: "corners", label: "Corners: (ω, Δslope dB/dec)", kind: "str", default: "[(1,-20),(10,-20)]", placeholder: "[(1,-20),(10,-20)]", tooltip: "Each magnitude-asymptote break you read off: −20 per pole, +20 per zero, at corner frequency ω." },
+      { name: "phase_events", label: "Phase events: (ω, Δφ°)", kind: "str", default: "[(1,-90),(10,-90)]", placeholder: "[(1,-90),(10,-90)]", tooltip: "Phase contributions you read off; the sign disambiguates LHP vs RHP (NMP) factors." },
+    ],
+    explanation: "Read the asymptotes off the exam's Bode plot → reconstruct G(s) → get type, order, gain/phase margins and the crossover frequencies at once. The drawn Bode lets you check the reconstruction against the exam figure (and you can overlay the exam plot behind it).",
+  },
   // ---- P3 ----
   {
     pattern: "P3", title: "P3 — Stable-K range", variant: "Stable-K range (handles RHP)", fn: "solve_stable_K_range",
