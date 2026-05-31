@@ -101,6 +101,17 @@ export class BlockDiagramCanvas {
         this.svg.classList.add('break-armed');
     }
 
+    // Anchor the blueprint to a world rectangle that preserves the image's aspect
+    // ratio (no stretching), centred in and scaled to fit the current view.
+    fitBlueprint(imgW, imgH) {
+        const vb = this.viewBox || { x: 0, y: 0, w: 1200, h: 600 };
+        if (!imgW || !imgH) { this.blueprintRect = { ...vb }; return; }
+        const margin = 0.85;
+        const scale = Math.min((vb.w * margin) / imgW, (vb.h * margin) / imgH);
+        const w = imgW * scale, h = imgH * scale;
+        this.blueprintRect = { x: vb.x + (vb.w - w) / 2, y: vb.y + (vb.h - h) / 2, w, h };
+    }
+
     addNode(type, x, y, value = "1", label = "") {
         const id = this.generateId(type);
         const node = {
@@ -917,7 +928,8 @@ export class BlockDiagramCanvas {
             blueprint.setAttribute('y', bpr.y);
             blueprint.setAttribute('width', bpr.w);
             blueprint.setAttribute('height', bpr.h);
-            blueprint.setAttribute('preserveAspectRatio', 'none');
+            // Keep the image's own aspect ratio (no stretching) within its rect.
+            blueprint.setAttribute('preserveAspectRatio', 'xMidYMid meet');
             blueprint.setAttribute('opacity', this.blueprintOpacity);
             blueprint.setAttribute('style', 'pointer-events: none;');
             blueprint.setAttribute('href', this.blueprintImgData);

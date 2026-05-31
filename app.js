@@ -692,6 +692,8 @@ document.addEventListener('DOMContentLoaded', () => {
             const imgDataUrl = visionPreviewImg.src;
             canvas.blueprintImgData = imgDataUrl;
             canvas.blueprintOpacity = 0.25;
+            // Anchor at the image's natural aspect ratio so it isn't stretched.
+            canvas.fitBlueprint(loadedImage.width, loadedImage.height);
             canvas.render();
 
             if (blueprintControls) {
