@@ -10,6 +10,8 @@ import { solveKPFromEss, solveEssTable } from "./solvers/p5.js";
 import { solvePiLead, solvePForPM, solvePiLeadDesign, solveLagBeta } from "./solvers/p6.js";
 import { composeTfFromBode } from "./solvers/p2.js";
 import { solveNestedEss, pickFeedforwardForm } from "./solvers/p7.js";
+import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from "./solvers/analysis.js";
+import { stepResponse } from "./solvers/timeresponse.js";
 import { parseQuestion } from "./smart-paste.js";
 import { readFileSync } from "node:fs";
 
@@ -175,6 +177,46 @@ function commands() {
       line("τ_f bound", out.tau_f_bound);
       break;
     }
+    case "bandwidth": {
+      line("ω_BW", `${fmt(bandwidth(G(argv[1])))} rad/s`);
+      break;
+    }
+    case "settling": {
+      const r = dominantSettling(G(argv[1]));
+      console.log(`Dominant-pole settling of ${argv[1]}`);
+      line("dominant pole", cplxStr(r.dominant_pole));
+      line("t_s (2%)", fmt(r.t_s_2pct));
+      line("t_s (5%)", fmt(r.t_s_5pct));
+      break;
+    }
+    case "stability": {
+      const f = flags(argv.slice(1));
+      const r = analyzeStability(G(f._[0]), num(f.K) ?? 1);
+      console.log(`Closed-loop stability of 1 + ${fmt(r.K)}·G`);
+      line("open-loop RHP poles", r.openLoopRhpPoles);
+      line("closed-loop RHP poles", r.closedLoopRhpPoles);
+      line("stable?", r.stable ? "yes" : "no");
+      break;
+    }
+    case "characterize": {
+      const c = characterizeTf(G(argv[1]));
+      console.log(`Characterize ${argv[1]}`);
+      line("poles", c.poles.map(cplxStr).join(", "));
+      line("DC gain", fmt(c.dc_gain));
+      if (c.is_second_order) {
+        line("zeta", fmt(c.zeta));
+        line("omega_n", fmt(c.omega_n));
+        if (c.metrics) for (const [k, v] of Object.entries(c.metrics)) line("  " + k, fmt(v));
+      }
+      break;
+    }
+    case "step-response": {
+      const r = stepResponse(G(argv[1]));
+      console.log(`Step response of ${argv[1]}`);
+      for (const t of r.terms) line("term", `${cplxStr(t.residue)} · e^(${cplxStr(t.pole)}·t)`);
+      line("final value", fmt(r.finalValue));
+      break;
+    }
     case "p-for-pm": {
       const out = solvePForPM(G(argv[1]), Number(argv[2]));
       console.log(`P-controller for PM=${argv[2]}° on ${argv[1]}`);
@@ -325,6 +367,11 @@ function usage() {
   node cli.js closed-loop   "K/(s**2+2*s+K)" --kind Mp --value 0.17
   node cli.js k-for-spec    "K/(s*(s+5))" "Mp <= 0.12"
   node cli.js feedforward   --n 3 --D 2
+  node cli.js bandwidth     "<G>"
+  node cli.js settling      "<G>"
+  node cli.js stability     "<G>" [--K 1]
+  node cli.js characterize  "<G>"               (poles, DC, and 2nd-order specs)
+  node cli.js step-response "<G>"
   node cli.js pi-lead       --unknown design --G "<G>" --wc 10 --gammaM 45 --Ni 8
   node cli.js question      "<paste exam text>"   |   --file question.txt
 
