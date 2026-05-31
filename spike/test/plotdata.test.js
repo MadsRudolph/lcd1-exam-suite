@@ -92,3 +92,15 @@ test("plotAnnotations is null-safe and fills what it can", () => {
   assert.ok(ann2.bode.PM_deg === null || Number.isFinite(ann2.bode.PM_deg), "PM_deg is null or finite, never Infinity/NaN");
   assert.ok(ann2.bode.omega_gc === null || Number.isFinite(ann2.bode.omega_gc), "omega_gc is null or finite");
 });
+
+import { buildPlotData } from "../solvers/plotdata.js";
+
+test("buildPlotData returns all four datasets plus annotations", () => {
+  const tf = parseTf("25/(s**2+3*s+25)");
+  const pd = buildPlotData(tf);
+  assert.ok(pd.bode.omega.length > 10, "bode");
+  assert.ok(pd.nyquist.re.length > 10, "nyquist");
+  assert.ok(pd.step.t.length > 10, "step");
+  assert.ok(pd.poleZero.poles.length === 2, "pole-zero");
+  assert.ok(pd.annotations.step.overshootPct > 30, "annotations");
+});

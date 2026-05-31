@@ -172,3 +172,13 @@ export function plotAnnotations(tf) {
   }
   return { bode, nyquist, step };
 }
+
+export function buildPlotData(tf) {
+  return {
+    bode: bodeData(tf),
+    nyquist: nyquistData(tf),
+    step: stepData(tf),
+    poleZero: poleZeroData(tf),
+    annotations: plotAnnotations(tf),
+  };
+}

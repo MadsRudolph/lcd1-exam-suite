@@ -162,6 +162,12 @@ export const FORMS = [
     explanation: "Closed-loop stability of 1 + K·G: open-loop and closed-loop RHP-pole counts (handles RHP plants).",
   },
   {
+    pattern: "Analysis", title: "Plot transfer function", variant: "step · Bode · Nyquist · pole-zero", fn: "plot_tf",
+    resultKind: "INFO",
+    fields: [{ name: "G", label: "G(s)", kind: "tf", placeholder: "25/(s**2+3*s+25)", tooltip: "Any transfer function to plot: step response, Bode, Nyquist and pole-zero map." }],
+    explanation: "Draws the unit step response, Bode diagram, Nyquist plot and pole-zero map of the transfer function, annotated with the key values.",
+  },
+  {
     pattern: "P7", title: "P7 — Nested ess", variant: "K from nested-loop ess", fn: "solve_nested_ess",
     resultKind: "NUMBER",
     fields: [
