@@ -8,81 +8,82 @@
 
 import { TransferFunction, Polynomial } from './math-engine.js';
 
-export function solveBlockDiagram(nodes, connections) {
-    // Check if any block has symbolic letters (excluding 's' and operators)
+const SOURCE_TYPES = ['input', 'disturbance'];
+
+export function transferFunction(nodes, connections, sourceId, sinkId) {
+    const sourceNode = nodes.find(n => n.id === sourceId);
+    const sinkNode = nodes.find(n => n.id === sinkId);
+    if (!sourceNode) throw new Error("No source selected");
+    if (!sinkNode) throw new Error("No sink selected");
+
+    // Symbolic if any block has letters other than 's'.
     const hasSymbolic = nodes.some(n => {
         if (n.type !== 'block') return false;
-        // Check if value contains letters other than 's'
         const val = n.value.toLowerCase().replace(/\s+/g, '');
-        // Remove 's', numbers, operators, decimal points, parentheses
-        const cleaned = val.replace(/[0-9s\+\-\*\/\(\)\.]/g, '');
+        const cleaned = val.replace(/[0-9s\^\+\-\*\/\(\)\.]/g, '');
         return cleaned.length > 0;
     });
 
     if (hasSymbolic) {
-        return solveSymbolically(nodes, connections);
-    } else {
-        // Run numeric solver to get the exact numerical final transfer function
-        const numResult = solveNumerically(nodes, connections);
-        
-        // Generate symbolic labels for a clean step-by-step reduction
-        let gCount = 1;
-        let hCount = 1;
-        const blockLabels = new Map();
-        nodes.forEach(n => {
-            if (n.type === 'block') {
-                const label = n.label ? n.label.trim() : "";
-                if (label && /^[a-zA-Z]+\d*$/.test(label) && label.length <= 4) {
-                    blockLabels.set(n.id, label);
-                } else {
-                    const isFeedback = n.direction === 'left';
-                    if (isFeedback) {
-                        blockLabels.set(n.id, `H${hCount++}`);
-                    } else {
-                        blockLabels.set(n.id, `G${gCount++}`);
-                    }
-                }
-            }
-        });
-
-        const symbolicNodes = nodes.map(n => {
-            if (n.type === 'block') {
-                const symLabel = blockLabels.get(n.id);
-                return {
-                    ...n,
-                    label: symLabel,
-                    value: symLabel
-                };
-            }
-            return { ...n };
-        });
-
-        // Run symbolic solver to get the beautiful educational steps
-        const symResult = solveSymbolically(symbolicNodes, connections);
-
-        return {
-            initialEquations: symResult.initialEquations,
-            steps: symResult.steps,
-            finalTransferFunction: numResult.finalTransferFunction
-        };
+        const r = solveSymbolically(nodes, connections, sourceId, sinkId);
+        return { ...r, tf: null };
     }
+
+    // Exact numeric final TF.
+    const numResult = solveNumerically(nodes, connections, sourceId, sinkId);
+
+    // Clean G/H labels for the educational symbolic steps.
+    let gCount = 1, hCount = 1;
+    const blockLabels = new Map();
+    nodes.forEach(n => {
+        if (n.type === 'block') {
+            const label = n.label ? n.label.trim() : "";
+            if (label && /^[a-zA-Z]+\d*$/.test(label) && label.length <= 4) {
+                blockLabels.set(n.id, label);
+            } else {
+                const isFeedback = n.direction === 'left';
+                blockLabels.set(n.id, isFeedback ? `H${hCount++}` : `G${gCount++}`);
+            }
+        }
+    });
+    const symbolicNodes = nodes.map(n => n.type === 'block'
+        ? { ...n, label: blockLabels.get(n.id), value: blockLabels.get(n.id) }
+        : { ...n });
+    const symResult = solveSymbolically(symbolicNodes, connections, sourceId, sinkId);
+
+    return {
+        initialEquations: symResult.initialEquations,
+        steps: symResult.steps,
+        finalTransferFunction: numResult.finalTransferFunction,
+        tf: numResult.tf
+    };
+}
+
+export function solveBlockDiagram(nodes, connections) {
+    const inputNode = nodes.find(n => n.type === 'input');
+    const outputNode = nodes.find(n => n.type === 'output');
+    if (!inputNode) throw new Error("Missing Input node (R)");
+    if (!outputNode) throw new Error("Missing Output node (Y)");
+    return transferFunction(nodes, connections, inputNode.id, outputNode.id);
 }
 
 // -------------------------------------------------------------------------
 // 1. EXACT RATIONAL NUMERIC SOLVER
 // -------------------------------------------------------------------------
-function solveNumerically(nodes, connections) {
-    const inputNode = nodes.find(n => n.type === 'input');
-    const outputNode = nodes.find(n => n.type === 'output');
+function solveNumerically(nodes, connections, sourceId, sinkId) {
+    const sourceNode = nodes.find(n => n.id === sourceId);
+    const sinkNode = nodes.find(n => n.id === sinkId);
 
-    if (!inputNode) throw new Error("Missing Input node (R)");
-    if (!outputNode) throw new Error("Missing Output node (Y)");
+    if (!sourceNode) throw new Error("Missing source node");
+    if (!sinkNode) throw new Error("Missing sink node");
 
-    const activeNodes = [
+    const base = [
         ...nodes.filter(n => n.type === 'block'),
         ...nodes.filter(n => n.type === 'sum'),
         ...nodes.filter(n => n.type === 'output')
     ];
+    // Put the sink last so the symbolic forward-substitution lands on it; harmless here.
+    const activeNodes = base.filter(n => n.id !== sinkId).concat(base.filter(n => n.id === sinkId));
     const K = activeNodes.length;
 
     if (K === 0) throw new Error("No blocks, sums, or outputs to solve");
@@ -123,7 +124,7 @@ function solveNumerically(nodes, connections) {
                 weight = weight.multiply(new TransferFunction([-1], [1]));
             }
 
-            if (fromNodeId === inputNode.id) {
+            if (fromNodeId === sourceId) {
                 V[i] = V[i].add(weight);
             } else {
                 const j = indexMap[fromNodeId];
@@ -161,11 +162,11 @@ function solveNumerically(nodes, connections) {
         if (!V[i].num.isZero()) {
             const vStr = V[i].toFormulaString();
             if (vStr === "1") {
-                rhs = `+ ${inputNode.label}`;
+                rhs = `+ ${sourceNode.label}`;
             } else if (vStr === "-1") {
-                rhs = `- ${inputNode.label}`;
+                rhs = `- ${sourceNode.label}`;
             } else {
-                rhs = `+ (${vStr}) \\cdot ${inputNode.label}`;
+                rhs = `+ (${vStr}) \\cdot ${sourceNode.label}`;
             }
         }
         
@@ -215,13 +216,13 @@ function solveNumerically(nodes, connections) {
         steps.push(`Eliminated column variable ${activeNodes[k].label}.`);
     }
 
-    const outIdx = indexMap[outputNode.id];
+    const outIdx = indexMap[sinkId];
     const finalTF = V[outIdx].clone().simplify();
 
-    // Create a mock TransferFunction wrapper that allows LaTeX rendering
     return {
         initialEquations,
         steps,
+        tf: finalTF,
         finalTransferFunction: {
             toKaTeX: () => finalTF.toKaTeX(),
             toFormulaString: () => finalTF.toFormulaString()
@@ -759,7 +760,7 @@ export function formatLabelForKaTeX(label) {
     return fmt;
 }
 
-function getEquationForNode(k, activeNodes, C, V, inputNode) {
+function getEquationForNode(k, activeNodes, C, V, sourceNode) {
     const node = activeNodes[k];
     const terms = [];
     activeNodes.forEach((otherNode, j) => {
@@ -779,7 +780,7 @@ function getEquationForNode(k, activeNodes, C, V, inputNode) {
     let rhs = "";
     if (!V[k].isZero()) {
         const vStr = V[k].toKaTeX();
-        const inputLabel = formatLabelForKaTeX(inputNode.label);
+        const inputLabel = formatLabelForKaTeX(sourceNode.label);
         if (vStr === "1") {
             rhs = `+ ${inputLabel}`;
         } else if (vStr === "-1") {
@@ -809,19 +810,20 @@ function getEquationForNode(k, activeNodes, C, V, inputNode) {
     return eq;
 }
 
-export function solveSymbolically(nodes, connections) {
-    const inputNode = nodes.find(n => n.type === 'input');
-    const outputNode = nodes.find(n => n.type === 'output');
+export function solveSymbolically(nodes, connections, sourceId, sinkId) {
+    const sourceNode = nodes.find(n => n.id === sourceId);
+    const sinkNode = nodes.find(n => n.id === sinkId);
 
-    if (!inputNode) throw new Error("Missing Input node (R)");
-    if (!outputNode) throw new Error("Missing Output node (Y)");
+    if (!sourceNode) throw new Error("Missing source node");
+    if (!sinkNode) throw new Error("Missing sink node");
 
-    // Sort active nodes: blocks first, then sums, then output
-    const activeNodes = [
+    // Sort active nodes: blocks, sums, outputs — then force the sink to be last.
+    const base = [
         ...nodes.filter(n => n.type === 'block'),
         ...nodes.filter(n => n.type === 'sum'),
         ...nodes.filter(n => n.type === 'output')
     ];
+    const activeNodes = base.filter(n => n.id !== sinkId).concat(base.filter(n => n.id === sinkId));
     const K = activeNodes.length;
 
     if (K === 0) throw new Error("No blocks, sums, or outputs to solve");
@@ -857,7 +859,7 @@ export function solveSymbolically(nodes, connections) {
                 symbol = SymExpr.neg(symbol);
             }
 
-            if (fromNodeId === inputNode.id) {
+            if (fromNodeId === sourceId) {
                 V[i] = V[i].add(symbol);
             } else {
                 const j = indexMap[fromNodeId];
@@ -888,7 +890,7 @@ export function solveSymbolically(nodes, connections) {
         let rhs = "";
         if (!V[i].isZero()) {
             const vStr = V[i].toKaTeX();
-            const inputLabel = formatLabelForKaTeX(inputNode.label);
+            const inputLabel = formatLabelForKaTeX(sourceNode.label);
             if (vStr === "1") {
                 rhs = `+ ${inputLabel}`;
             } else if (vStr === "-1") {
@@ -909,13 +911,13 @@ export function solveSymbolically(nodes, connections) {
     });
 
     const steps = [];
-    const outIdx = indexMap[outputNode.id]; // Should be K - 1
+    const outIdx = indexMap[sinkId]; // Should be K - 1
 
     // Eliminating intermediate nodes step by step using forward substitution
     for (let k = 0; k < K - 1; k++) {
         const selfLoop = C[k][k];
         if (!selfLoop.isZero()) {
-            const eqBefore = getEquationForNode(k, activeNodes, C, V, inputNode);
+            const eqBefore = getEquationForNode(k, activeNodes, C, V, sourceNode);
             const denom = SymExpr.const("1").subtract(selfLoop);
             V[k] = V[k].divide(denom);
             for (let j = 0; j < K; j++) {
@@ -924,7 +926,7 @@ export function solveSymbolically(nodes, connections) {
                 }
             }
             C[k][k] = SymExpr.const("0");
-            const eqAfter = getEquationForNode(k, activeNodes, C, V, inputNode);
+            const eqAfter = getEquationForNode(k, activeNodes, C, V, sourceNode);
 
             steps.push({
                 type: 'self-loop',
@@ -938,7 +940,7 @@ export function solveSymbolically(nodes, connections) {
             const factor = C[i][k];
             if (factor.isZero()) continue;
 
-            const eqBefore = getEquationForNode(i, activeNodes, C, V, inputNode);
+            const eqBefore = getEquationForNode(i, activeNodes, C, V, sourceNode);
 
             V[i] = V[i].add(factor.multiply(V[k]));
             for (let j = 0; j < K; j++) {
@@ -948,7 +950,7 @@ export function solveSymbolically(nodes, connections) {
             }
             C[i][k] = SymExpr.const("0");
 
-            const eqAfter = getEquationForNode(i, activeNodes, C, V, inputNode);
+            const eqAfter = getEquationForNode(i, activeNodes, C, V, sourceNode);
 
             steps.push({
                 type: 'substitution',
@@ -961,13 +963,13 @@ export function solveSymbolically(nodes, connections) {
     const finalSelfLoop = C[K - 1][K - 1];
     let rawFinalTF = V[K - 1];
     if (!finalSelfLoop.isZero()) {
-        const eqBefore = getEquationForNode(K - 1, activeNodes, C, V, inputNode);
+        const eqBefore = getEquationForNode(K - 1, activeNodes, C, V, sourceNode);
         rawFinalTF = rawFinalTF.divide(SymExpr.const("1").subtract(finalSelfLoop));
         C[K - 1][K - 1] = SymExpr.const("0");
-        const eqAfter = getEquationForNode(K - 1, activeNodes, C, V, inputNode);
+        const eqAfter = getEquationForNode(K - 1, activeNodes, C, V, sourceNode);
         steps.push({
             type: 'self-loop',
-            title: `Resolve Final Self-Loop on ${outputNode.label}`,
+            title: `Resolve Final Self-Loop on ${sinkNode.label}`,
             latex: `${eqBefore} \\quad \\implies \\quad ${eqAfter}`
         });
     }
