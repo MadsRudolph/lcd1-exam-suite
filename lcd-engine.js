@@ -92,6 +92,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "solve_margins": {
+        out.tf = inp.G;
         dictResult(out, solveMargins(parseTf(inp.G)), matchKey || "GM", optionsText);
         break;
       }
@@ -140,6 +141,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "characterize": {
+        out.tf = inp.G;
         const c = characterizeTf(parseTf(inp.G));
         const polesStr = c.poles.map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ");
         out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)]];
@@ -153,6 +155,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "bandwidth": {
+        out.tf = inp.G;
         numResult(out, "\\omega_{BW}", bandwidth(parseTf(inp.G)), optionsText);
         break;
       }
@@ -163,6 +166,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "analyze_stability": {
+        out.tf = inp.G;
         const r = analyzeStability(parseTf(inp.G), fnum(inp.K) ?? 1);
         out.latex = `\\text{${r.stable ? "stable" : "UNSTABLE"}}\\ (Z=${r.closedLoopRhpPoles})`;
         out.summary = [["open-loop RHP poles", r.openLoopRhpPoles], ["closed-loop RHP poles", r.closedLoopRhpPoles], ["stable?", r.stable ? "yes" : "no"]];
