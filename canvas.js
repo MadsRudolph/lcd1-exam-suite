@@ -111,6 +111,9 @@ export class BlockDiagramCanvas {
         } else if (type === 'sum') {
             node.label = label || "Σ";
             node.value = "";
+        } else if (type === 'disturbance') {
+            node.label = label || "D";
+            node.value = "1";
         }
 
         this.nodes.push(node);
@@ -958,14 +961,15 @@ export class BlockDiagramCanvas {
 
         const dir = node.direction || 'right';
 
-        if (node.type === 'input' || node.type === 'output') {
+        if (node.type === 'input' || node.type === 'output' || node.type === 'disturbance') {
+            const isDisturbance = node.type === 'disturbance';
             // Circle node
             const circ = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
             circ.setAttribute('cx', node.x);
             circ.setAttribute('cy', node.y);
             circ.setAttribute('r', '25');
             circ.setAttribute('fill', '#1e293b');
-            circ.setAttribute('stroke', isSelected ? '#3b82f6' : '#64748b');
+            circ.setAttribute('stroke', isSelected ? '#3b82f6' : (isDisturbance ? '#f59e0b' : '#64748b'));
             circ.setAttribute('stroke-width', isSelected ? '3' : '2');
             circ.setAttribute('filter', 'drop-shadow(0px 4px 6px rgba(0,0,0,0.3))');
             g.appendChild(circ);
@@ -974,26 +978,37 @@ export class BlockDiagramCanvas {
             text.setAttribute('x', node.x);
             text.setAttribute('y', node.y + 5);
             text.setAttribute('text-anchor', 'middle');
-            text.setAttribute('fill', '#f8fafc');
+            text.setAttribute('fill', isDisturbance ? '#fbbf24' : '#f8fafc');
             text.setAttribute('font-family', 'sans-serif');
             text.setAttribute('font-weight', 'bold');
             text.setAttribute('font-size', '14');
             text.textContent = node.label;
             g.appendChild(text);
 
-            // Add Ports based on direction
-            if (node.type === 'input') {
-                let outX = node.x + 25, outY = node.y;
-                if (dir === 'left') { outX = node.x - 25; }
-                else if (dir === 'up') { outX = node.x; outY = node.y - 25; }
-                else if (dir === 'down') { outX = node.x; outY = node.y + 25; }
-                this.addPort(g, node.id, outX, outY, 'out');
-            } else {
+            if (isDisturbance) {
+                // Downward inject arrow above the circle, signalling an external input.
+                const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+                arrow.setAttribute('d', `M ${node.x} ${node.y - 48} L ${node.x} ${node.y - 28} M ${node.x - 5} ${node.y - 34} L ${node.x} ${node.y - 28} L ${node.x + 5} ${node.y - 34}`);
+                arrow.setAttribute('stroke', '#f59e0b');
+                arrow.setAttribute('stroke-width', '2');
+                arrow.setAttribute('fill', 'none');
+                g.appendChild(arrow);
+            }
+
+            // Add Ports based on direction.
+            if (node.type === 'output') {
                 let inX = node.x - 25, inY = node.y;
                 if (dir === 'left') { inX = node.x + 25; }
                 else if (dir === 'up') { inX = node.x; inY = node.y + 25; }
                 else if (dir === 'down') { inX = node.x; inY = node.y - 25; }
                 this.addPort(g, node.id, inX, inY, 'in');
+            } else {
+                // input and disturbance both expose a single output port.
+                let outX = node.x + 25, outY = node.y;
+                if (dir === 'left') { outX = node.x - 25; }
+                else if (dir === 'up') { outX = node.x; outY = node.y - 25; }
+                else if (dir === 'down') { outX = node.x; outY = node.y + 25; }
+                this.addPort(g, node.id, outX, outY, 'out');
             }
         } else if (node.type === 'sum') {
             // Circular junction (larger circle with radius 25)

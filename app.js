@@ -18,6 +18,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const addOutputBtn = document.getElementById('add-output-btn');
     const addBlockBtn = document.getElementById('add-block-btn');
     const addSumBtn = document.getElementById('add-sum-btn');
+    const addDisturbanceBtn = document.getElementById('add-disturbance-btn');
     const solveBtn = document.getElementById('solve-btn');
     const clearBtn = document.getElementById('clear-btn');
     
@@ -54,6 +55,11 @@ document.addEventListener('DOMContentLoaded', () => {
     addSumBtn.addEventListener('click', () => {
         canvas.addNode('sum', 180, 200, '', 'Σ');
     });
+    if (addDisturbanceBtn) {
+        addDisturbanceBtn.addEventListener('click', () => {
+            canvas.addNode('disturbance', 180, 360, '1', 'D');
+        });
+    }
 
     // Clear Canvas
     clearBtn.addEventListener('click', () => {
