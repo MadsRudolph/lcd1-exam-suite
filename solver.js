@@ -73,10 +73,10 @@ export function solveBlockDiagram(nodes, connections) {
 export function collectEndpoints(nodes) {
     const sources = nodes
         .filter(n => SOURCE_TYPES.includes(n.type))
-        .map(n => ({ id: n.id, label: n.label }));
+        .map(n => ({ id: n.id, label: n.label || n.id }));
     const sinks = nodes
         .filter(n => n.type === 'output')
-        .map(n => ({ id: n.id, label: n.label }));
+        .map(n => ({ id: n.id, label: n.label || n.id }));
     return { sources, sinks };
 }
 
@@ -121,15 +121,22 @@ function negateResult(result) {
             }
         };
     }
-    const k = result.finalTransferFunction.toKaTeX();
-    const f = result.finalTransferFunction.toFormulaString();
+    // Symbolic: present -(measured) tidily (no -(-...) or -(0)).
+    const negateStr = (s, isLatex) => {
+        const t = s.trim();
+        if (t === '0') return '0';
+        if (t.startsWith('-')) return t.slice(1).trim();
+        return isLatex ? `-\\left(${t}\\right)` : `-(${t})`;
+    };
+    const k = negateStr(result.finalTransferFunction.toKaTeX(), true);
+    const f = negateStr(result.finalTransferFunction.toFormulaString(), false);
     return {
         initialEquations: [],
         steps: [],
         tf: null,
         finalTransferFunction: {
-            toKaTeX: () => `-\\left(${k}\\right)`,
-            toFormulaString: () => `-(${f})`
+            toKaTeX: () => k,
+            toFormulaString: () => f
         }
     };
 }

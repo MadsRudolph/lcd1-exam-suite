@@ -54,3 +54,41 @@ test("breaking a non-loop forward wire gives L = 0", () => {
   const r = loopGain(nodes, connections, "c3"); // G -> Y is not part of a loop
   approxCoeffs(r.tf.num.coeffs, [0], "num");
 });
+
+// Symbolic loop: blocks carry letters (G, H) so the solver stays symbolic (tf === null).
+function symbolicLoop() {
+  const nodes = [
+    { id: "R", type: "input",  value: "1", label: "R", x: 0, y: 0 },
+    { id: "S", type: "sum",    value: "",  label: "S", x: 0, y: 0 },
+    { id: "G", type: "block",  value: "G", label: "G", x: 0, y: 0 },
+    { id: "H", type: "block",  value: "H", label: "H", direction: "left", x: 0, y: 0 },
+    { id: "Y", type: "output", value: "1", label: "Y", x: 0, y: 0 },
+  ];
+  const connections = [
+    { id: "c1", fromNode: "R", toNode: "S", sign: "+" },
+    { id: "c2", fromNode: "S", toNode: "G", sign: "" },
+    { id: "c3", fromNode: "G", toNode: "Y", sign: "" },
+    { id: "c4", fromNode: "G", toNode: "H", sign: "" },
+    { id: "fb", fromNode: "H", toNode: "S", sign: "-" },
+  ];
+  return { nodes, connections };
+}
+
+test("symbolic loop gain has no double-negative", () => {
+  const { nodes, connections } = symbolicLoop();
+  const r = loopGain(nodes, connections, "fb");
+  assert.equal(r.tf, null);
+  const f = r.finalTransferFunction.toFormulaString();
+  assert.ok(!f.includes("-(-"), `unexpected double negative: ${f}`);
+  assert.ok(!/^-\(?0\)?$/.test(f.trim()), `unexpected -(0): ${f}`);
+});
+
+test("symbolic non-loop forward wire renders L = 0 without a leading minus", () => {
+  const { nodes, connections } = symbolicLoop();
+  const r = loopGain(nodes, connections, "c3"); // G -> Y is not part of a loop
+  assert.equal(r.tf, null);
+  const f = r.finalTransferFunction.toFormulaString();
+  const k = r.finalTransferFunction.toKaTeX();
+  assert.equal(f.trim(), "0");
+  assert.equal(k.trim(), "0");
+});
