@@ -53,14 +53,24 @@ test/      node:test parity suites (one per problem type) + cli smoke test
 
 ## Coverage vs the oracle
 
+**74 JS tests green; the Python oracle is 70/70 on the same machine.** Every solver
+family is ported and parity-verified. The only intentional gap is the symbolic DSL
+block-reducer (`p1_block_reduce.py`) — BDR's graphical reducer replaces it in the merged app.
+
 | Problem | Ported | Notes |
 |---|---|---|
+| P1 ODE → TF | ✅ | |
+| P1 state-space → TF | ✅ | Faddeev–Leverrier C(sI−A)⁻¹B + D |
+| P1 block reduction (DSL) | ⛔ by design | superseded by BDR's graphical reducer |
 | P2 Bode read-off → G(s) | ✅ | figure output omitted |
 | P3 margins + stable-K | ✅ | matches python-control margins |
-| P4 2nd-order metrics | ✅ | `solve_K_for_spec` (symbolic K) pending Smart Paste |
+| P4 2nd-order metrics | ✅ | |
+| P4 `solve_K_for_spec` | ✅ | numeric 1-D solve (no CAS) |
 | P5 ess (K_P + table) | ✅ | |
 | P6 PI-Lead + P-for-PM | ✅ | |
+| P6 full design + lag-beta | ✅ | |
 | P7 feedforward + nested ess | ✅ | |
-| Smart Paste (route + extract) | ✅ | garbled-PDF TF reconstruction; P6 beta/design modes pending |
+| Option matching | ✅ | NUMBER/DICT/TF/PICK + stable-range flagging |
+| Smart Paste (route + extract) | ✅ | garbled-PDF TF reconstruction |
 
 See [`../docs/js-port-fidelity-spike.md`](../docs/js-port-fidelity-spike.md) for the fidelity write-up.

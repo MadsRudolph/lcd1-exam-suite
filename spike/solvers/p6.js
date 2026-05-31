@@ -122,4 +122,56 @@ export function solvePForPM(tf, target_PM_deg) {
   return { K_P, omega_c };
 }
 
+/**
+ * Full PI-Lead design at a given crossover frequency. With G and omega_c known,
+ * phi_G = angle(G(j*omega_c)) is computed directly (no Bode read-off), the phase
+ * budget gives alpha, then K_P = 1/|G*C_PI*C_Lead(j*omega_c)|.
+ */
+export function solvePiLeadDesign({ G, omega_c, gamma_M_deg, N_i } = {}) {
+  for (const [k, v] of [["G", G], ["omega_c", omega_c], ["gamma_M_deg", gamma_M_deg], ["N_i", N_i]]) {
+    if (v === null || v === undefined) throw new Error(`Design mode needs G, omega_c, gamma_M and N_i (missing ${k}).`);
+  }
+  const wc = Number(omega_c);
+  const gammaM = Number(gamma_M_deg);
+  const Ni = Number(N_i);
+
+  // Unwrapped plant phase swept up to omega_c, sampled at the end.
+  const omegas = logspace(-3, Math.log10(wc), 200_000);
+  const phases = plantPhaseDeg(G, omegas);
+  const phi_G = phases[phases.length - 1];
+
+  const phi_lead_req = -180 + gammaM - phi_G - phiPI(Ni);
+  const s = Math.sin(rad(phi_lead_req));
+  const alpha = (1 - s) / (1 + s);
+  const tau_i = Ni / wc;
+  const tau_d = 1.0 / (wc * Math.sqrt(alpha));
+
+  const jw = new Complex(0, wc);
+  const C_PI = jw.scale(tau_i).add(new Complex(1, 0)).div(jw.scale(tau_i));
+  const C_d = jw.scale(tau_d).add(new Complex(1, 0)).div(jw.scale(alpha * tau_d).add(new Complex(1, 0)));
+  const L = Gjw(G, wc).mul(C_PI).mul(C_d);
+  const K_P = 1.0 / L.abs();
+  return { alpha, tau_d, tau_i, K_P, phi_G_deg: phi_G, omega_c: wc };
+}
+
+/**
+ * Lag-part beta from the Lead-Lag phase budget:
+ *   -180 + gamma_M = phi_G + phi_Lead + phi_Lag,
+ *   phi_Lag = arctan(N_i*(1-beta)/(1+beta*N_i^2)).
+ */
+export function solveLagBeta({ gamma_M_deg, phi_G_deg, alpha, N_i } = {}) {
+  if (phi_G_deg === null || phi_G_deg === undefined) {
+    throw new Error("Lag-beta needs alpha, N_i, gamma_M and phi_G (read phi_G off the Bode plot at the crossover frequency).");
+  }
+  const gammaM = Number(gamma_M_deg);
+  const phiG = Number(phi_G_deg);
+  const a = Number(alpha);
+  const Ni = Number(N_i);
+  const phi_lead = deg(Math.asin((1 - a) / (1 + a)));
+  const phi_lag_deg = -180 + gammaM - phiG - phi_lead;
+  const t = Math.tan(rad(phi_lag_deg));
+  const beta = (Ni - t) / (Ni * (Ni * t + 1));
+  return { beta };
+}
+
 export { plantPhaseDeg, interp };

@@ -1,6 +1,6 @@
-// P4 — 2nd-order specs. JS port of lcd1-solver/lcd_solver/solvers/p4_secondorder.py
-// (the pure closed-form part: solve_2nd_order). Symbolic K-extraction is ported
-// separately once the numeric core lands.
+// P4 — 2nd-order specs. JS port of lcd1-solver/lcd_solver/solvers/p4_secondorder.py:
+// the closed-form solve_2nd_order plus a numeric solve_K_for_spec.
+import { parseTf } from "../numeric/parse.js";
 
 function MpFromZeta(zeta) {
   if (zeta <= 0 || zeta >= 1) return 0.0;
@@ -65,6 +65,51 @@ export function solve2ndOrder({
     out.M_r = 1 / (2 * zeta * Math.sqrt(1 - zeta ** 2));
   }
   return out;
+}
+
+/**
+ * Closed-loop K boundary for a 2nd-order-reducible unity-feedback loop with a
+ * proportional loop gain K, e.g. G = "K/(s*(s+5))". JS replacement for the
+ * sympy-based solve_K_for_spec: substitute K=1 to recover the base plant P(s),
+ * form the closed-loop char poly den_P + K*num_P numerically, and 1-D solve
+ * zeta(K) = zeta_required (zeta decreases monotonically with K).
+ *
+ * spec ∈ {"Mp <= X", "zeta >= X"}. Returns the K boundary.
+ */
+export function solveKForSpec(G_str, spec) {
+  const m = /^\s*(Mp|zeta)\s*(<=|>=)\s*([\d.eE+-]+)\s*$/.exec(spec);
+  if (!m) throw new Error(`Unrecognised spec: ${spec}`);
+  const [, varName, , valStr] = m;
+  const val = parseFloat(valStr);
+  const zetaReq = varName === "Mp" ? zetaFromMp(val) : val;
+
+  // Base plant P(s): substitute the loop gain symbol K -> 1.
+  const P = parseTf(G_str.replace(/\bK_?[Pp]?\b/g, "1"));
+  const numP = P.num.slice();
+  const denP = P.den.slice();
+  if (denP.length !== 3) {
+    throw new Error("solve_K_for_spec only handles 2nd-order-reducible closed loops");
+  }
+  // closed-loop denominator = den_P + K*num_P (num_P left-padded to den_P length)
+  const padNum = new Array(denP.length).fill(0);
+  for (let i = 0; i < numP.length; i++) padNum[denP.length - numP.length + i] = numP[i];
+
+  const zetaOfK = (K) => {
+    const a2 = denP[0] + K * padNum[0];
+    const a1 = denP[1] + K * padNum[1];
+    const a0 = denP[2] + K * padNum[2];
+    return a1 / a2 / (2 * Math.sqrt(a0 / a2));
+  };
+
+  // zeta(K) is decreasing; bisect f(K)=zeta(K)-zetaReq on (lo, hi).
+  let lo = 1e-9;
+  let hi = 1e9;
+  for (let i = 0; i < 200; i++) {
+    const mid = 0.5 * (lo + hi);
+    if (zetaOfK(mid) > zetaReq) lo = mid;
+    else hi = mid;
+  }
+  return 0.5 * (lo + hi);
 }
 
 export { MpFromZeta, zetaFromMp };
