@@ -9,6 +9,7 @@ import { solveKPFromEss, solveEssTable } from "./spike/solvers/p5.js";
 import { solvePiLead, solvePForPM, solvePiLeadDesign, solveLagBeta } from "./spike/solvers/p6.js";
 import { solveNestedEss, pickFeedforwardForm } from "./spike/solvers/p7.js";
 import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from "./spike/solvers/analysis.js";
+import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { solveOdeToTf, solveStateSpaceToTf } from "./spike/solvers/p1.js";
 import { composeTfFromBode } from "./spike/solvers/p2.js";
 import { parseQuestion } from "./spike/smart-paste.js";
@@ -91,6 +92,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "solve_margins": {
+        out.tf = inp.G;
         dictResult(out, solveMargins(parseTf(inp.G)), matchKey || "GM", optionsText);
         break;
       }
@@ -139,6 +141,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "characterize": {
+        out.tf = inp.G;
         const c = characterizeTf(parseTf(inp.G));
         const polesStr = c.poles.map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ");
         out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)]];
@@ -152,6 +155,7 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "bandwidth": {
+        out.tf = inp.G;
         numResult(out, "\\omega_{BW}", bandwidth(parseTf(inp.G)), optionsText);
         break;
       }
@@ -162,9 +166,17 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "analyze_stability": {
+        out.tf = inp.G;
         const r = analyzeStability(parseTf(inp.G), fnum(inp.K) ?? 1);
         out.latex = `\\text{${r.stable ? "stable" : "UNSTABLE"}}\\ (Z=${r.closedLoopRhpPoles})`;
         out.summary = [["open-loop RHP poles", r.openLoopRhpPoles], ["closed-loop RHP poles", r.closedLoopRhpPoles], ["stable?", r.stable ? "yes" : "no"]];
+        break;
+      }
+      case "plot_tf": {
+        const G = parseTf(inp.G);
+        out.tf = inp.G;            // string echo for contextual buttons
+        out.plotData = buildPlotData(G);
+        out.summary = [["poles", G.poles().map((p) => `${p.re.toPrecision(4)}${p.im >= 0 ? "+" : ""}${p.im.toPrecision(4)}j`).join(", ")]];
         break;
       }
       default:
