@@ -163,13 +163,6 @@
         <main class="canvas-container" style="position:relative;">
             <header class="canvas-header">
                 <div class="canvas-header-title">SVG INTERACTIVE BOARD</div>
-                
-                <!-- Background Blueprint Watermark Controls -->
-                <div class="blueprint-controls" id="blueprint-controls" style="display: none; align-items: center; gap: 10px; background: rgba(30, 41, 59, 0.45); padding: 4px 12px; border-radius: 6px; border: 1px solid var(--border-color);">
-                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Blueprint Opacity:</span>
-                    <input type="range" id="blueprint-opacity" min="0" max="100" value="25" style="width: 80px; cursor: pointer;">
-                    <button class="btn-action red" id="clear-blueprint-btn" style="padding: 2px 8px; font-size: 10px; line-height: 1.2;">Clear Blueprint</button>
-                </div>
 
                 <div class="canvas-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
                     <label style="font-size:11px; color:var(--text-secondary);">Source</label>
@@ -191,6 +184,13 @@
               <button class="btn-action" id="zoom-in-btn" title="Zoom in" style="width:30px; padding:4px 0;">+</button>
               <button class="btn-action" id="zoom-reset-btn" title="Reset to 100%" style="padding:4px 10px;">Reset</button>
               <button class="btn-action" id="zoom-fit-btn" title="Fit diagram" style="padding:4px 10px;">Fit</button>
+            </div>
+
+            <!-- Background Blueprint Watermark Controls (float bottom-left, away from the top switcher) -->
+            <div class="blueprint-controls" id="blueprint-controls" style="display: none; position:absolute; left:14px; bottom:14px; z-index:6; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Blueprint Opacity:</span>
+                <input type="range" id="blueprint-opacity" min="0" max="100" value="25" style="width: 80px; cursor: pointer;">
+                <button class="btn-action red" id="clear-blueprint-btn" style="padding: 2px 8px; font-size: 10px; line-height: 1.2;">Clear Blueprint</button>
             </div>
         </main>
 

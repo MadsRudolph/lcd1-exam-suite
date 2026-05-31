@@ -219,7 +219,11 @@ h2 {
     display: flex;
     align-items: center;
     justify-content: space-between;
-    padding: 12px 24px;
+    flex-wrap: wrap;
+    row-gap: 8px;
+    /* Top padding clears the floating mode switcher (fixed, top:14px) so the
+       header controls sit below it instead of being overlapped. */
+    padding: 56px 24px 12px 24px;
     z-index: 5;
 }
 

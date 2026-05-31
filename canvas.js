@@ -72,6 +72,10 @@ export class BlockDiagramCanvas {
         // Background blueprint template watermark tracking
         this.blueprintImgData = null;
         this.blueprintOpacity = 0.25;
+        // Fixed world rectangle the blueprint occupies, so it pans/zooms with the
+        // diagram instead of sticking to the viewport. Captured once when a blueprint
+        // is applied; cleared when removed.
+        this.blueprintRect = null;
 
         this.initEvents();
         this.render();
@@ -901,17 +905,26 @@ export class BlockDiagramCanvas {
 
         // Draw blueprint if loaded
         if (this.blueprintImgData) {
+            // Anchor the blueprint to a fixed world rectangle (captured the first
+            // render after it's applied) so it stays locked to the diagram while
+            // panning/zooming, rather than following the viewport.
+            if (!this.blueprintRect) this.blueprintRect = { ...vb };
+            const bpr = this.blueprintRect;
             const blueprint = document.createElementNS('http://www.w3.org/2000/svg', 'image');
             blueprint.setAttribute('id', 'canvas-blueprint');
-            blueprint.setAttribute('x', vb.x);
-            blueprint.setAttribute('y', vb.y);
-            blueprint.setAttribute('width', vb.w);
-            blueprint.setAttribute('height', vb.h);
+            blueprint.setAttribute('x', bpr.x);
+            blueprint.setAttribute('y', bpr.y);
+            blueprint.setAttribute('width', bpr.w);
+            blueprint.setAttribute('height', bpr.h);
+            blueprint.setAttribute('preserveAspectRatio', 'none');
             blueprint.setAttribute('opacity', this.blueprintOpacity);
             blueprint.setAttribute('style', 'pointer-events: none;');
             blueprint.setAttribute('href', this.blueprintImgData);
             blueprint.setAttributeNS('http://www.w3.org/1999/xlink', 'xlink:href', this.blueprintImgData);
             this.svg.appendChild(blueprint);
+        } else {
+            // No blueprint: forget any captured rectangle so the next one re-anchors.
+            this.blueprintRect = null;
         }
 
         // Draw established connections
