@@ -8,6 +8,7 @@ import { solveBlockDiagram } from "./solver.js";
 import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
 import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { parseTf } from "./spike/numeric/parse.js";
+import { attachHover } from "./plot-interact.js";
 
 const VERSION = "v1.2.1";
 
@@ -450,6 +451,7 @@ function renderPlotPanel(pd) {
   };
   const show = (name) => {
     view.innerHTML = views[name](); // generated SVG string — safe, no user markup
+    attachHover(view, pd);
     [...tabs.children].forEach((b) => { b.style.opacity = b.textContent === name ? "1" : "0.55"; });
   };
   for (const name of Object.keys(views)) {
@@ -523,6 +525,7 @@ function renderResults(body, res) {
         try {
           const pd = buildPlotData(parseTf(res.tf));
           view.innerHTML = fn(pd);
+          attachHover(view, pd);
         } catch (e) { view.textContent = "Could not plot: " + e.message; }
       };
       return b;
