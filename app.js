@@ -94,6 +94,26 @@ document.addEventListener('DOMContentLoaded', () => {
         });
     }
 
+    const breakLoopBtn = document.getElementById('break-loop-btn');
+    if (breakLoopBtn) {
+        breakLoopBtn.addEventListener('click', () => {
+            tfOutput.innerHTML = `<span style="color: var(--accent-blue); font-size: 13px;">Click a wire to break the loop there…</span>`;
+            canvas.enterBreakMode((connId) => {
+                try {
+                    const result = loopGain(canvas.nodes, canvas.connections, connId);
+                    lastSolutionResult = result;
+                    currentTfLabel = 'L(s)';
+                    renderMathSolution(result, 'L(s)');
+                    if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
+                    if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
+                } catch (e) {
+                    console.error(e);
+                    tfOutput.innerHTML = `<span style="color: var(--accent-red); font-size: 13px;">Error: ${e.message}</span>`;
+                }
+            });
+        });
+    }
+
     // Clear Canvas
     clearBtn.addEventListener('click', () => {
         canvas.clear();

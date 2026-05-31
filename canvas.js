@@ -91,6 +91,11 @@ export class BlockDiagramCanvas {
         this.onStateChange();
     }
 
+    enterBreakMode(callback) {
+        this.breakMode = callback;
+        this.svg.style.cursor = 'crosshair';
+    }
+
     addNode(type, x, y, value = "1", label = "") {
         const id = this.generateId(type);
         const node = {
@@ -166,7 +171,10 @@ export class BlockDiagramCanvas {
                 } else if (e.key.toLowerCase() === 'r') {
                     this.rotateSelected();
                 } else if (e.key === 'Escape') {
-                    if (this.activeWire) {
+                    if (this.breakMode) {
+                        this.breakMode = null;
+                        this.svg.style.cursor = '';
+                    } else if (this.activeWire) {
                         this.activeWire = null;
                         this.render();
                     } else if (this.selectedElement) {
@@ -294,6 +302,20 @@ export class BlockDiagramCanvas {
     onMouseDown(e) {
         const coords = this.getMouseCoords(e);
         const target = e.target;
+
+        // One-shot "break a wire" mode: the next wire click is the cut.
+        if (this.breakMode) {
+            const wirePath = target.closest('.connection-line');
+            if (wirePath) {
+                e.preventDefault();
+                const connId = wirePath.getAttribute('data-id');
+                const cb = this.breakMode;
+                this.breakMode = null;
+                this.svg.style.cursor = '';
+                cb(connId);
+            }
+            return;
+        }
 
         // 1. Check if clicked a port to start drawing connection
         if (target.classList.contains('port')) {
