@@ -3,14 +3,17 @@
 //   node cli.js <command> [args]   |   node cli.js help
 import { parseTf } from "./numeric/parse.js";
 import { Complex } from "./numeric/complex.js";
+import { solveOdeToTf, solveStateSpaceToTf } from "./solvers/p1.js";
 import { solveMargins, solveStableKRange } from "./solvers/p3.js";
-import { solve2ndOrder } from "./solvers/p4.js";
+import { solve2ndOrder, solveClosedLoop2ndOrder, solveKForSpec } from "./solvers/p4.js";
 import { solveKPFromEss, solveEssTable } from "./solvers/p5.js";
-import { solvePiLead, solvePForPM } from "./solvers/p6.js";
+import { solvePiLead, solvePForPM, solvePiLeadDesign, solveLagBeta } from "./solvers/p6.js";
 import { composeTfFromBode } from "./solvers/p2.js";
 import { solveNestedEss, pickFeedforwardForm } from "./solvers/p7.js";
 import { parseQuestion } from "./smart-paste.js";
 import { readFileSync } from "node:fs";
+
+const cplxStr = (c) => `${(c.re).toPrecision(4)}${c.im >= 0 ? "+" : "-"}${Math.abs(c.im).toPrecision(4)}j`;
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -118,16 +121,58 @@ function commands() {
     }
     case "pi-lead": {
       const f = flags(argv.slice(1));
-      const res = solvePiLead({
-        unknown: f.unknown,
-        omega_c: num(f.wc),
-        gamma_M_deg: num(f.gammaM),
-        phi_G_deg: num(f.phiG),
-        N_i: num(f.Ni),
-        alpha: num(f.alpha),
-        G: f.G ? G(f.G) : null,
-      });
-      line(f.unknown, fmt(res));
+      if (f.unknown === "design") {
+        const d = solvePiLeadDesign({ G: G(f.G), omega_c: num(f.wc), gamma_M_deg: num(f.gammaM), N_i: num(f.Ni) });
+        console.log("PI-Lead full design");
+        for (const [k, v] of Object.entries(d)) line(k, fmt(v));
+      } else if (f.unknown === "beta") {
+        line("beta", fmt(solveLagBeta({ gamma_M_deg: num(f.gammaM), phi_G_deg: num(f.phiG), alpha: num(f.alpha), N_i: num(f.Ni) }).beta));
+      } else {
+        const res = solvePiLead({
+          unknown: f.unknown, omega_c: num(f.wc), gamma_M_deg: num(f.gammaM),
+          phi_G_deg: num(f.phiG), N_i: num(f.Ni), alpha: num(f.alpha), G: f.G ? G(f.G) : null,
+        });
+        line(f.unknown, fmt(res));
+      }
+      break;
+    }
+    case "ode": {
+      // node cli.js ode --y "5,1,0.5" --u "3"
+      const f = flags(argv.slice(1));
+      const list = (s) => (s || "").split(",").map((x) => Number(x.trim()));
+      const Gt = solveOdeToTf(list(f.y), list(f.u));
+      console.log("ODE -> transfer function");
+      line("poles", Gt.poles().map(cplxStr).join(", "));
+      break;
+    }
+    case "ss": {
+      // node cli.js ss --A "[[-1,0],[0,-1]]" --B "[[1],[9]]" --C "[[1,1]]" --D "[[0]]"
+      const f = flags(argv.slice(1));
+      const Gt = solveStateSpaceToTf(JSON.parse(f.A), JSON.parse(f.B), JSON.parse(f.C), JSON.parse(f.D || "[[0]]"));
+      console.log("State-space -> transfer function");
+      line("poles", Gt.poles().map(cplxStr).join(", "));
+      line("DC gain", fmt(Gt.dcGain()));
+      break;
+    }
+    case "closed-loop": {
+      // node cli.js closed-loop "K/(s**2+2*s+K)" --kind Mp --value 0.17
+      const f = flags(argv.slice(1));
+      const out = solveClosedLoop2ndOrder(f._[0], f.kind, Number(f.value));
+      console.log("Closed-loop 2nd-order");
+      for (const [k, v] of Object.entries(out)) line(k, fmt(v));
+      break;
+    }
+    case "k-for-spec": {
+      // node cli.js k-for-spec "K/(s*(s+5))" "Mp <= 0.12"
+      line("K", fmt(solveKForSpec(argv[1], argv[2])));
+      break;
+    }
+    case "feedforward": {
+      const f = flags(argv.slice(1));
+      const out = pickFeedforwardForm({ n_lags: num(f.n) ?? 3, D_order: num(f.D) ?? 2 });
+      line("option", out.option_label);
+      line("filter order", out.filter_order);
+      line("τ_f bound", out.tau_f_bound);
       break;
     }
     case "p-for-pm": {
@@ -275,6 +320,12 @@ function usage() {
   node cli.js pi-lead       --unknown <alpha|Ni|KP> --gammaM 75 --phiG -112.77 --Ni 5 [--alpha .01] [--G "<G>"]
   node cli.js bode          --dc 6.02 --corners "1:-20,2:20" --phase "1:-90,2:-90"
   node cli.js nested-ess    --arch two_KP_same --G0 0.75 --ess 0.25
+  node cli.js ode           --y "5,1,0.5" --u "3"
+  node cli.js ss            --A "[[-1,0],[0,-1]]" --B "[[1],[9]]" --C "[[1,1]]" --D "[[0]]"
+  node cli.js closed-loop   "K/(s**2+2*s+K)" --kind Mp --value 0.17
+  node cli.js k-for-spec    "K/(s*(s+5))" "Mp <= 0.12"
+  node cli.js feedforward   --n 3 --D 2
+  node cli.js pi-lead       --unknown design --G "<G>" --wc 10 --gammaM 45 --Ni 8
   node cli.js question      "<paste exam text>"   |   --file question.txt
 
 Transfer functions use s, *, /, +, -, ** (or ^). Example: "900/((0.25*s+1)*(s**2+50*s+3000))"`);
