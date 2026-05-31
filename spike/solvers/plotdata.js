@@ -3,6 +3,7 @@
 // data objects. No DOM, no rendering — fully unit-testable.
 import { Complex } from "../numeric/complex.js";
 import { logspace } from "../numeric/margins.js";
+import { dominantSettling } from "./analysis.js";
 
 export { logspace };
 
@@ -65,9 +66,6 @@ export function nyquistData(tf, opts = {}) {
   return { re, im, omega };
 }
 
-// append to spike/solvers/plotdata.js
-import { dominantSettling } from "./analysis.js";
-
 function linspace(a, b, n) {
   const out = [];
   const step = (b - a) / (n - 1);
@@ -81,7 +79,7 @@ export function stepData(tf, opts = {}) {
   const num = tf.num.map((c) => c / d0);
   const order = a.length - 1;
 
-  const n = opts.n || 600;
+  const n = opts.n != null ? opts.n : 600;
   let tMax = opts.tMax;
   if (tMax == null) {
     try { tMax = dominantSettling(tf).t_s_2pct * 1.3; } catch { tMax = 10; }

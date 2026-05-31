@@ -30,7 +30,6 @@ test("bodeData phase is unwrapped (monotone for a 2-pole lag)", () => {
   assert.ok(phaseDeg[phaseDeg.length - 1] < -170, "approaches -180 deg");
 });
 
-// append to spike/test/plotdata.test.js
 import { nyquistData } from "../solvers/plotdata.js";
 
 test("nyquistData starts near the DC gain on the real axis", () => {
@@ -49,7 +48,6 @@ test("nyquistData caps the magnitude for an integrator", () => {
   }
 });
 
-// append to spike/test/plotdata.test.js
 import { stepData } from "../solvers/plotdata.js";
 
 test("stepData final value equals the DC gain for a stable TF", () => {
