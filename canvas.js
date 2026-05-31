@@ -3,6 +3,20 @@
  * Visual SVG canvas engine for drawing, dragging, and connecting block diagram components.
  */
 
+/**
+ * A wire may only connect an output port to an input port (in either drag
+ * direction), and never a port to itself / the same node. This is the single
+ * rule that governs both port-to-port wiring and take-off branches dragged off
+ * an existing wire (which always carry an output signal).
+ */
+export function isValidPortConnection(startNode, startPortType, targetNode, targetPortType) {
+    if (!targetNode || targetNode === startNode) return false;
+    return (
+        (startPortType === 'out' && targetPortType === 'in') ||
+        (startPortType === 'in' && targetPortType === 'out')
+    );
+}
+
 export class BlockDiagramCanvas {
     constructor(svgElement, onStateChange = () => {}) {
         this.svg = svgElement;
@@ -15,7 +29,8 @@ export class BlockDiagramCanvas {
         this.draggedNode = null;
         this.draggedConnection = null;
         this.activeWire = null; // Temporary wire during dragging
-        
+        this.wireTapCandidate = null; // Pending take-off branch from a grabbed wire
+
         this.dragOffset = { x: 0, y: 0 };
         this.nextId = 1;
 
@@ -209,18 +224,33 @@ export class BlockDiagramCanvas {
             return;
         }
 
-        // 2. Check if clicked a connection
+        // 2. Clicked a wire.
+        //    - Shift+drag  -> pull a new take-off branch, anchored at the grab point.
+        //    - plain drag  -> move/reshape the wire.
+        //    - plain click -> select it (for delete).
         const connPath = target.closest('.connection-line');
         if (connPath) {
             e.preventDefault();
             const connId = connPath.getAttribute('data-id');
             const conn = this.connections.find(c => c.id === connId);
-            
-            this.draggedConnection = conn;
-            this.selectedElement = { type: 'connection', id: connId };
-            
-            this.render();
-            this.onStateChange();
+            if (conn) {
+                if (e.shiftKey) {
+                    const near = this.getNearestPointOnConnection(conn, coords);
+                    this.wireTapCandidate = {
+                        connId,
+                        fromNode: conn.fromNode,
+                        segmentIndex: near.segmentIndex,
+                        ratio: near.ratio,
+                        startCoords: { x: near.x, y: near.y },
+                        downCoords: coords,
+                    };
+                } else {
+                    this.draggedConnection = conn;
+                    this.selectedElement = { type: 'connection', id: connId };
+                    this.render();
+                    this.onStateChange();
+                }
+            }
             return;
         }
 
@@ -298,6 +328,24 @@ export class BlockDiagramCanvas {
             
             this.render();
             this.onStateChange();
+        }
+
+        // Promote a wire-tap candidate into a live branch once the user drags.
+        if (this.wireTapCandidate && !this.activeWire) {
+            const c = this.wireTapCandidate;
+            if (Math.hypot(coords.x - c.downCoords.x, coords.y - c.downCoords.y) > 6) {
+                this.activeWire = {
+                    fromNode: c.fromNode,
+                    startNode: c.fromNode,
+                    startPortType: 'out',
+                    fromPortCoords: c.startCoords,
+                    currentCoords: coords,
+                    tapConnId: c.connId,
+                    tapSegmentIndex: c.segmentIndex,
+                    tapRatio: c.ratio,
+                };
+                this.wireTapCandidate = null;
+            }
         }
 
         // Handle connection wire drawing
@@ -392,6 +440,17 @@ export class BlockDiagramCanvas {
     }
 
     onMouseUp(e) {
+        // A wire-tap candidate that never turned into a drag = a plain click:
+        // select the wire (so it can be deleted), don't branch.
+        if (this.wireTapCandidate && !this.activeWire) {
+            this.selectedElement = { type: 'connection', id: this.wireTapCandidate.connId };
+            this.wireTapCandidate = null;
+            this.render();
+            this.onStateChange();
+            return;
+        }
+        this.wireTapCandidate = null;
+
         // Complete wire connection
         if (this.activeWire) {
             const target = e.target;
@@ -399,11 +458,12 @@ export class BlockDiagramCanvas {
                 const targetNodeId = target.getAttribute('data-node');
                 const targetPortType = target.getAttribute('data-port-type');
 
-                // We can only connect if we are connecting a start 'out' port to a target 'in' port,
-                // OR a start 'in' port to a target 'out' port, and they are different nodes.
-                if (targetNodeId !== this.activeWire.startNode && 
-                    ((this.activeWire.startPortType === 'out' && targetPortType === 'in') ||
-                     (this.activeWire.startPortType === 'in' && targetPortType === 'out'))) {
+                // Only connect output->input (or input->output) between two
+                // different nodes. Branches dragged off a wire carry an output
+                // signal, so they too are rejected unless dropped on an input.
+                if (isValidPortConnection(
+                        this.activeWire.startNode, this.activeWire.startPortType,
+                        targetNodeId, targetPortType)) {
                     
                     const fromNodeId = this.activeWire.startPortType === 'out' ? this.activeWire.startNode : targetNodeId;
                     const toNodeId = this.activeWire.startPortType === 'in' ? this.activeWire.startNode : targetNodeId;
@@ -1004,6 +1064,18 @@ export class BlockDiagramCanvas {
         path.setAttribute('marker-end', 'url(#arrow)');
         this.svg.appendChild(path);
 
+        // Wide transparent hit-area on top, so the whole wire is easy to grab:
+        // drag from anywhere on it to branch a new take-off; click to select.
+        const hit = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+        hit.setAttribute('class', 'connection-line connection-hit');
+        hit.setAttribute('data-id', conn.id);
+        hit.setAttribute('d', d);
+        hit.setAttribute('fill', 'none');
+        hit.setAttribute('stroke', 'transparent');
+        hit.setAttribute('stroke-width', '14');
+        hit.style.cursor = 'move'; // plain drag moves; Shift+drag branches
+        this.svg.appendChild(hit);
+
         // Add arrowhead helper
         this.addArrowheadMarker();
 
@@ -1019,23 +1091,24 @@ export class BlockDiagramCanvas {
             this.svg.appendChild(dot);
         }
 
-        // Draw active tap port in the middle of the connection line
-        const mid = this.getConnectionMidpoint(conn);
-        const tapPort = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-        tapPort.setAttribute('class', 'port tap-port');
-        tapPort.setAttribute('cx', mid.x);
-        tapPort.setAttribute('cy', mid.y);
-        tapPort.setAttribute('r', '4');
-        tapPort.setAttribute('fill', '#10b981');
-        tapPort.setAttribute('stroke', '#0f172a');
-        tapPort.setAttribute('stroke-width', '1');
-        tapPort.setAttribute('data-node', conn.fromNode);
-        tapPort.setAttribute('data-port-type', 'out');
-        tapPort.setAttribute('data-tap-conn-id', conn.id);
-        tapPort.setAttribute('data-tap-segment', mid.segmentIndex);
-        tapPort.setAttribute('data-tap-ratio', mid.ratio);
-        tapPort.style.cursor = 'crosshair';
-        this.svg.appendChild(tapPort);
+    }
+
+    // Nearest point on a wire to a click, as {segmentIndex, ratio, x, y}.
+    // Used to anchor a new take-off branch exactly where the user grabbed the wire.
+    getNearestPointOnConnection(conn, coords) {
+        const points = this.getConnectionPoints(conn);
+        let best = { segmentIndex: 0, ratio: 0.5, x: points[0]?.x ?? 0, y: points[0]?.y ?? 0, dist: Infinity };
+        for (let i = 0; i < points.length - 1; i++) {
+            const p1 = points[i], p2 = points[i + 1];
+            const dx = p2.x - p1.x, dy = p2.y - p1.y;
+            const len2 = dx * dx + dy * dy;
+            let t = len2 > 0 ? ((coords.x - p1.x) * dx + (coords.y - p1.y) * dy) / len2 : 0;
+            t = Math.max(0, Math.min(1, t));
+            const x = p1.x + dx * t, y = p1.y + dy * t;
+            const dist = Math.hypot(coords.x - x, coords.y - y);
+            if (dist < best.dist) best = { segmentIndex: i, ratio: t, x, y, dist };
+        }
+        return best;
     }
 
     drawTempWire() {
