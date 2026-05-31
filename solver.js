@@ -15,6 +15,9 @@ export function transferFunction(nodes, connections, sourceId, sinkId) {
     const sinkNode = nodes.find(n => n.id === sinkId);
     if (!sourceNode) throw new Error("No source selected");
     if (!sinkNode) throw new Error("No sink selected");
+    if (SOURCE_TYPES.includes(sinkNode.type)) {
+        throw new Error("Sink must be an output node, not a source");
+    }
 
     // Symbolic if any block has letters other than 's'.
     const hasSymbolic = nodes.some(n => {
@@ -780,16 +783,16 @@ function getEquationForNode(k, activeNodes, C, V, sourceNode) {
     let rhs = "";
     if (!V[k].isZero()) {
         const vStr = V[k].toKaTeX();
-        const inputLabel = formatLabelForKaTeX(sourceNode.label);
+        const sourceLabel = formatLabelForKaTeX(sourceNode.label);
         if (vStr === "1") {
-            rhs = `+ ${inputLabel}`;
+            rhs = `+ ${sourceLabel}`;
         } else if (vStr === "-1") {
-            rhs = `- ${inputLabel}`;
+            rhs = `- ${sourceLabel}`;
         } else {
-            rhs = `+ (${vStr}) \\cdot ${inputLabel}`;
+            rhs = `+ (${vStr}) \\cdot ${sourceLabel}`;
         }
     }
-    
+
     const nodeLabel = formatLabelForKaTeX(node.label);
     if (terms.length === 0 && rhs === "") {
         return `${nodeLabel} = 0`;
@@ -890,13 +893,13 @@ export function solveSymbolically(nodes, connections, sourceId, sinkId) {
         let rhs = "";
         if (!V[i].isZero()) {
             const vStr = V[i].toKaTeX();
-            const inputLabel = formatLabelForKaTeX(sourceNode.label);
+            const sourceLabel = formatLabelForKaTeX(sourceNode.label);
             if (vStr === "1") {
-                rhs = `+ ${inputLabel}`;
+                rhs = `+ ${sourceLabel}`;
             } else if (vStr === "-1") {
-                rhs = `- ${inputLabel}`;
+                rhs = `- ${sourceLabel}`;
             } else {
-                rhs = `+ (${vStr}) \\cdot ${inputLabel}`;
+                rhs = `+ (${vStr}) \\cdot ${sourceLabel}`;
             }
         }
         

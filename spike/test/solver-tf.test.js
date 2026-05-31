@@ -55,6 +55,11 @@ test("a disturbance with no path to the sink gives TF = 0", () => {
   approxCoeffs(r.tf.num.coeffs, [0], "num");
 });
 
+test("using a source node as the sink is rejected with a clear error", () => {
+  const { nodes, connections } = standardLoopWithDisturbance();
+  assert.throws(() => transferFunction(nodes, connections, "R", "D"), /Sink must be an output/);
+});
+
 test("solveBlockDiagram defaults to first input -> first output (regression)", () => {
   const { nodes, connections } = standardLoopWithDisturbance();
   const r = solveBlockDiagram(nodes, connections);
