@@ -40,6 +40,52 @@ function monoCmp(k1, k2) {
     return 0;
 }
 
+// expose monomial helpers to class methods that need them
+const monoFromKeyExported = monoFromKey;
+const keyFromMonoExported = keyFromMono;
+
+function trimUni(arr) {                 // drop trailing zero coeffs (high degree)
+    let n = arr.length;
+    while (n > 1 && arr[n - 1].isZero()) n--;
+    return arr.slice(0, n);
+}
+function degUni(arr) { const t = trimUni(arr); return t[t.length - 1].isZero() ? -1 : t.length - 1; }
+function contentOf(arr) {               // gcd of all coefficients (MPolys in fewer vars)
+    let g = MPoly.ZERO;
+    for (const co of arr) g = MPoly.gcd(g, co);
+    return g.isZero() ? MPoly.ONE : g;
+}
+function primitivePartUni(arr) {
+    const ct = contentOf(arr);
+    return arr.map(co => co.divideExact(ct));
+}
+// pseudo-remainder of A by B (arrays of MPoly, univariate); returns array.
+function pseudoRem(A, B) {
+    A = trimUni(A); B = trimUni(B);
+    const dB = degUni(B);
+    const lcB = B[dB];
+    let R = A.slice();
+    while (degUni(R) >= dB && degUni(R) >= 0) {
+        const dR = degUni(R);
+        const t = R[dR];                                 // lc(R) BEFORE scaling
+        const shift = dR - dB;
+        R = R.map(co => co.mul(lcB));                    // scale whole R by lc(B)
+        for (let i = 0; i <= dB; i++) R[i + shift] = R[i + shift].sub(t.mul(B[i]));
+        R = trimUni(R);
+    }
+    return R;
+}
+function primitivePRS(A, B) {
+    let P = trimUni(A), Q = trimUni(B);
+    if (degUni(P) < degUni(Q)) [P, Q] = [Q, P];
+    while (!(degUni(Q) < 0)) {
+        const R = pseudoRem(P, Q);
+        P = Q;
+        Q = (degUni(R) < 0) ? [MPoly.ZERO] : primitivePartUni(R);
+    }
+    return primitivePartUni(P);
+}
+
 export class MPoly {
     // terms: Map<keyStr, Rational> (no zero coeffs)
     constructor(terms = new Map()) {
@@ -118,6 +164,59 @@ export class MPoly {
             R = R.sub(B.mulTerm(qc, qm));
         }
         return new MPoly(Q);
+    }
+
+    // --- univariate view in variable v: array index = degree in v, entries are MPoly in the rest ---
+    toUnivariate(v) {
+        const arr = [];
+        for (const [k, coeff] of this.terms) {
+            const m = monoFromKeyExported(k);
+            const e = m.get(v) || 0;
+            m.delete(v);
+            const rest = new MPoly(new Map([[keyFromMonoExported(m), coeff]]));
+            arr[e] = (arr[e] || MPoly.ZERO).add(rest);
+        }
+        for (let i = 0; i < arr.length; i++) if (!arr[i]) arr[i] = MPoly.ZERO;
+        return arr;
+    }
+    static fromUnivariate(arr, v) {
+        let out = MPoly.ZERO;
+        for (let e = 0; e < arr.length; e++) {
+            if (arr[e].isZero()) continue;
+            out = out.add(arr[e].mulTerm(Rational.ONE, e === 0 ? "" : `${v}:${e}`));
+        }
+        return out;
+    }
+
+    // lex-leading Rational coefficient (over all terms) — used to normalise to monic.
+    leadingRational() {
+        if (this.isZero()) return Rational.ONE;
+        return this.leadingTerm().coeff;
+    }
+    scaleByRational(r) {
+        const m = new Map();
+        for (const [k, c] of this.terms) m.set(k, c.mul(r));
+        return new MPoly(m);
+    }
+    normalizeMonic() {
+        if (this.isZero()) return this;
+        return this.scaleByRational(Rational.ONE.div(this.leadingRational()));
+    }
+
+    static gcd(A, B) {
+        if (A.isZero()) return B.isZero() ? MPoly.ZERO : B.normalizeMonic();
+        if (B.isZero()) return A.normalizeMonic();
+        const vars = new Set([...A.vars(), ...B.vars()]);
+        if (vars.size === 0) return MPoly.ONE;            // nonzero constants
+        const v = [...vars].sort()[0];
+        let Au = A.toUnivariate(v), Bu = B.toUnivariate(v);
+        const cA = contentOf(Au), cB = contentOf(Bu);
+        const contentGcd = MPoly.gcd(cA, cB);
+        const ppA = Au.map(co => co.divideExact(cA));
+        const ppB = Bu.map(co => co.divideExact(cB));
+        const g = primitivePRS(ppA, ppB);                // array (univariate in v), primitive
+        const result = contentGcd.mul(MPoly.fromUnivariate(g, v));
+        return result.normalizeMonic();
     }
 
     // collected string, monomials lex-descending, constant last; coeff 1 omitted except constant.
