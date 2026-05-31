@@ -102,7 +102,6 @@ export function bodePlot(data, ann = {}) {
     series: [{ x: data.omega, y: data.magDb, color: "#60a5fa" }],
     xScale: "log", yLabel: "Magnitude (dB)", title: "Bode Diagram",
     width: 460, height: 180,
-    hlines: ann.omega_BW != null ? [] : [],
     vlines: [
       ...(ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : []),
       ...(ann.omega_pc ? [{ x: ann.omega_pc, color: "#f59e0b" }] : []),
@@ -162,7 +161,7 @@ export function stepPlot(data, ann = {}) {
 export function poleZeroPlot(data) {
   const xs = [...data.poles, ...data.zeros].map((c) => c.re).concat([0]);
   const ys = [...data.poles, ...data.zeros].map((c) => c.im).concat([0]);
-  const base = linePlot({
+  return linePlot({
     series: [{ x: xs, y: ys, color: "transparent" }],
     xScale: "linear", xLabel: "Real", yLabel: "Imag", title: "Pole-Zero Map",
     width: 320, height: 280,
@@ -173,11 +172,11 @@ export function poleZeroPlot(data) {
     vlines: [{ x: 0, color: "#64748b" }],
     hlines: [{ y: 0, color: "#64748b" }],
   });
-  return base;
 }
 
 function fmt(x) {
   if (x === Infinity) return "inf";
+  if (x === -Infinity) return "-inf";
   if (x == null || Number.isNaN(x)) return "-";
   return String(Number(x.toPrecision(3)));
 }
