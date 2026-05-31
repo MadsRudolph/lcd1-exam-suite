@@ -43,3 +43,24 @@ export function bodeData(tf, opts = {}) {
   const phaseDeg = unwrap(phaseRaw).map((p) => (p * 180) / Math.PI);
   return { omega, magDb, phaseDeg };
 }
+
+export function nyquistData(tf, opts = {}) {
+  const [a, b] = opts.wMin != null && opts.wMax != null
+    ? [Math.log10(opts.wMin), Math.log10(opts.wMax)]
+    : autoFreqRange(tf);
+  const n = opts.n || 800;
+  const cap = opts.cap || 1e3;
+  const omega = logspace(a, b, n);
+  const re = [];
+  const im = [];
+  for (const w of omega) {
+    const G = tf.evalAt(new Complex(0, w));
+    let x = G.re;
+    let y = G.im;
+    const m = Math.hypot(x, y);
+    if (m > cap) { x = (x / m) * cap; y = (y / m) * cap; } // keep integrators on-screen
+    re.push(x);
+    im.push(y);
+  }
+  return { re, im, omega };
+}
