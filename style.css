@@ -35,8 +35,13 @@ body {
 .app-container {
     display: grid;
     grid-template-columns: 280px 1fr auto var(--right-panel-width, 400px);
+    /* Pin the single row to the viewport so a tall sidebar/right-panel can't
+       stretch the grid past the screen and push bottom controls off-screen.
+       Those panels scroll internally instead. */
+    grid-template-rows: 100vh;
     height: 100vh;
     width: 100vw;
+    overflow: hidden;
 }
 
 /* Sidebar Panels */

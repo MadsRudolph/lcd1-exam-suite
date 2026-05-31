@@ -55,13 +55,6 @@
                     </svg>
                     Import Diagram (Ctrl+V)
                 </button>
-
-                <!-- Background Blueprint controls — shown while a traced image is active -->
-                <div class="blueprint-controls" id="blueprint-controls" style="display: none; flex-direction: column; gap: 8px; margin-top: 10px; background: rgba(15, 23, 42, 0.6); padding: 10px 12px; border-radius: 8px; border: 1px solid var(--border-color);">
-                    <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Blueprint Opacity</span>
-                    <input type="range" id="blueprint-opacity" min="0" max="100" value="25" style="width: 100%; cursor: pointer;">
-                    <button class="btn-action red" id="clear-blueprint-btn" style="padding: 5px 8px; font-size: 11px;">Clear Blueprint</button>
-                </div>
             </div>
 
             <h2>Properties</h2>
@@ -191,6 +184,13 @@
               <button class="btn-action" id="zoom-in-btn" title="Zoom in" style="width:30px; padding:4px 0;">+</button>
               <button class="btn-action" id="zoom-reset-btn" title="Reset to 100%" style="padding:4px 10px;">Reset</button>
               <button class="btn-action" id="zoom-fit-btn" title="Fit diagram" style="padding:4px 10px;">Fit</button>
+            </div>
+
+            <!-- Background Blueprint controls (float bottom-left, shown while a traced image is active) -->
+            <div class="blueprint-controls" id="blueprint-controls" style="display: none; position:absolute; left:14px; bottom:14px; z-index:6; align-items: center; gap: 10px; background: rgba(15, 23, 42, 0.85); backdrop-filter: blur(12px); padding: 6px 12px; border-radius: 8px; border: 1px solid var(--border-color); box-shadow: 0 8px 24px rgba(0,0,0,0.4);">
+                <span style="font-size: 11px; color: var(--text-secondary); font-weight: 500;">Blueprint Opacity:</span>
+                <input type="range" id="blueprint-opacity" min="0" max="100" value="25" style="width: 80px; cursor: pointer;">
+                <button class="btn-action red" id="clear-blueprint-btn" style="padding: 2px 8px; font-size: 10px; line-height: 1.2;">Clear Blueprint</button>
             </div>
 
         </main>
