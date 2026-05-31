@@ -8,6 +8,8 @@ import { BlockDiagramCanvas } from './canvas.js';
 import { solveBlockDiagram, transferFunction, collectEndpoints, loopGain } from './solver.js';
 import { TransferFunction } from './math-engine.js';
 import { analyzeImageTopology } from './vision-analyzer.js';
+import { TEMPLATES, TEMPLATE_GROUPS } from './templates.js';
+import { createDiagramStore } from './diagram-store.js';
 import './lcd-solver-ui.js';
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -343,130 +345,104 @@ document.addEventListener('DOMContentLoaded', () => {
         }
     }
 
-    // Templates setup
-    const templateItems = document.querySelectorAll('.template-item');
-    templateItems.forEach(item => {
-        item.addEventListener('click', (e) => {
-            const btn = e.target.closest('.template-item');
-            const templateType = btn.getAttribute('data-template');
-            loadTemplate(templateType);
-        });
-    });
+    // -------------------------------------------------------------
+    // Template library (examples) + local saved diagrams
+    // -------------------------------------------------------------
+    const diagramStore = createDiagramStore();
+    const examplesList = document.getElementById('examples-list');
+    const myDiagramsList = document.getElementById('my-diagrams-list');
+    const saveDiagramBtn = document.getElementById('save-diagram-btn');
 
-    function loadTemplate(type) {
-        canvas.clear();
+    function loadDiagramState(state) {
         clearMathDisplays();
-
-        if (type === 'feedback') {
-            // Simple Negative Feedback G / H
-            const r = canvas.addNode('input', 80, 200, '1', 'R');
-            const sum = canvas.addNode('sum', 200, 200, '', 'Σ');
-            const g = canvas.addNode('block', 350, 200, '10 / (s^2 + 2s)', 'G');
-            const h = canvas.addNode('block', 350, 320, '2', 'H');
-            h.direction = 'left'; // Pre-rotate feedback block
-            const y = canvas.addNode('output', 580, 200, '1', 'Y');
-
-            canvas.connections.push(
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: sum.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum.id, toNode: g.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: g.id, toNode: y.id, sign: '' },
-                
-                // Feedback loop branching from G output, going through H to Sum negative
-                { id: canvas.generateId('conn'), fromNode: g.id, toNode: h.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: h.id, toNode: sum.id, sign: '-' }
-            );
-        } else if (type === 's20q3') {
-            // Exam S20 Q3
-            const r = canvas.addNode('input', 70, 200, '1', 'R');
-            const sum = canvas.addNode('sum', 190, 200, '', 'Σ1');
-            const g1 = canvas.addNode('block', 320, 200, '1 / (s + B)', 'G_ol');
-            const a = canvas.addNode('block', 320, 90, 'A', 'A');
-            const sum2 = canvas.addNode('sum', 460, 200, '', 'Σ2');
-            const y = canvas.addNode('output', 570, 200, '1', 'Y');
-
-            canvas.connections.push(
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: sum.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: a.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: sum.id, toNode: g1.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: g1.id, toNode: sum2.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: a.id, toNode: sum2.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum2.id, toNode: y.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: g1.id, toNode: sum.id, sign: '-' } // internal feedback loop
-            );
-        } else if (type === 's21q1') {
-            // Exam S21 Q1: two forward paths sharing one loop BCF
-            const r = canvas.addNode('input', 70, 200, '1', 'R');
-            const sum1 = canvas.addNode('sum', 170, 200, '', 'Σ1');
-            const sum2 = canvas.addNode('sum', 270, 200, '', 'Σ2');
-            const b = canvas.addNode('block', 380, 200, 'B', 'B');
-            const c = canvas.addNode('block', 500, 200, 'C', 'C');
-            const e = canvas.addNode('block', 380, 80, 'E', 'E');
-            const f = canvas.addNode('block', 380, 320, 'F', 'F');
-            f.direction = 'left'; // Pre-rotate feedback block
-            const sum3 = canvas.addNode('sum', 610, 200, '', 'Σ3');
-            const y = canvas.addNode('output', 690, 200, '1', 'Y');
-
-            canvas.connections.push(
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: sum1.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: e.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: sum1.id, toNode: sum2.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum2.id, toNode: b.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: b.id, toNode: c.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: c.id, toNode: sum3.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: e.id, toNode: sum3.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum3.id, toNode: y.id, sign: '' },
-                
-                // Feedback loop BCF back to sum2
-                { id: canvas.generateId('conn'), fromNode: c.id, toNode: f.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: f.id, toNode: sum2.id, sign: '-' }
-            );
-        } else if (type === 'f22q1') {
-            // Exam F22 Q1: Replicates the exact 13-node diagram in the picture with spacious aligned coordinates
-            const r = canvas.addNode('input', 50, 200, '1', 'R');
-            const sum1 = canvas.addNode('sum', 150, 200, '', 'Σ1');
-            const sum2 = canvas.addNode('sum', 260, 200, '', 'Σ2');
-            const a = canvas.addNode('block', 380, 200, 'A', 'A');
-            const b = canvas.addNode('block', 500, 200, 'B', 'B');
-            const sum3 = canvas.addNode('sum', 610, 200, '', 'Σ3');
-            const d = canvas.addNode('block', 730, 120, 'D', 'D');
-            const c = canvas.addNode('block', 730, 280, 'C', 'C');
-            const sum4 = canvas.addNode('sum', 850, 200, '', 'Σ4');
-            const e = canvas.addNode('block', 960, 200, 'E', 'E');
-            const y = canvas.addNode('output', 1070, 200, '1', 'Y');
-            
-            const h1 = canvas.addNode('block', 500, 360, 'H1', 'H1');
-            h1.direction = 'left'; // Pre-rotate feedback block
-            
-            const h2 = canvas.addNode('block', 780, 50, 'H2', 'H2');
-            h2.direction = 'left'; // Pre-rotate feedback block
-
-            canvas.connections.push(
-                { id: canvas.generateId('conn'), fromNode: r.id, toNode: sum1.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum1.id, toNode: sum2.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: sum2.id, toNode: a.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: a.id, toNode: b.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: b.id, toNode: sum2.id, sign: '-' }, // inner loop
-                { id: canvas.generateId('conn'), fromNode: b.id, toNode: sum3.id, sign: '+' },
-                
-                { id: canvas.generateId('conn'), fromNode: sum3.id, toNode: c.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: sum3.id, toNode: d.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: c.id, toNode: sum4.id, sign: '+' },
-                { id: canvas.generateId('conn'), fromNode: d.id, toNode: sum4.id, sign: '+' },
-                
-                { id: canvas.generateId('conn'), fromNode: sum4.id, toNode: h1.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: h1.id, toNode: sum1.id, sign: '-' }, // H1 loop
-                
-                { id: canvas.generateId('conn'), fromNode: sum4.id, toNode: e.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: e.id, toNode: y.id, sign: '' },
-                
-                { id: canvas.generateId('conn'), fromNode: e.id, toNode: h2.id, sign: '' },
-                { id: canvas.generateId('conn'), fromNode: h2.id, toNode: sum3.id, sign: '-' } // H2 loop
-            );
-        }
-
-        canvas.render();
+        canvas.loadState(state);
         triggerSolve();
     }
+
+    function escapeHtml(s) {
+        return String(s).replace(/[&<>"]/g, (ch) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[ch]));
+    }
+
+    function makeTemplateItem(title, subtitle, onClick) {
+        const btn = document.createElement('button');
+        btn.className = 'template-item';
+        btn.innerHTML = `${escapeHtml(title)}<span>${escapeHtml(subtitle)}</span>`;
+        btn.addEventListener('click', onClick);
+        return btn;
+    }
+
+    function renderExamples() {
+        if (!examplesList) return;
+        examplesList.innerHTML = '';
+        for (const group of TEMPLATE_GROUPS) {
+            const inGroup = TEMPLATES.filter((t) => t.group === group);
+            if (!inGroup.length) continue;
+            const label = document.createElement('div');
+            label.className = 'template-group-label';
+            label.textContent = group;
+            examplesList.appendChild(label);
+            for (const t of inGroup) {
+                examplesList.appendChild(makeTemplateItem(t.name, t.description || '', () => loadDiagramState(t.state)));
+            }
+        }
+    }
+
+    function renderMyDiagrams() {
+        if (!myDiagramsList) return;
+        myDiagramsList.innerHTML = '';
+        const saved = diagramStore.list();
+        if (!saved.length) {
+            const empty = document.createElement('div');
+            empty.className = 'my-diagrams-empty';
+            empty.textContent = 'No saved diagrams yet — build one and press Save.';
+            myDiagramsList.appendChild(empty);
+            return;
+        }
+        for (const d of saved) {
+            const row = document.createElement('div');
+            row.className = 'saved-row';
+
+            const open = makeTemplateItem(d.name, 'Saved ' + new Date(d.savedAt).toLocaleString(), () => loadDiagramState(d.state));
+            open.classList.add('saved-open');
+            row.appendChild(open);
+
+            const ren = document.createElement('button');
+            ren.className = 'saved-action';
+            ren.title = 'Rename';
+            ren.textContent = '✎';
+            ren.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                const name = window.prompt('Rename diagram:', d.name);
+                if (name && name.trim()) { diagramStore.rename(d.id, name); renderMyDiagrams(); }
+            });
+            row.appendChild(ren);
+
+            const del = document.createElement('button');
+            del.className = 'saved-action danger';
+            del.title = 'Delete';
+            del.textContent = '🗑';
+            del.addEventListener('click', (ev) => {
+                ev.stopPropagation();
+                if (window.confirm(`Delete "${d.name}"? This cannot be undone.`)) { diagramStore.remove(d.id); renderMyDiagrams(); }
+            });
+            row.appendChild(del);
+
+            myDiagramsList.appendChild(row);
+        }
+    }
+
+    if (saveDiagramBtn) {
+        saveDiagramBtn.addEventListener('click', () => {
+            if (!canvas.nodes.length) { window.alert('Nothing to save — the canvas is empty.'); return; }
+            const name = window.prompt('Save diagram as:', 'My diagram');
+            if (!name || !name.trim()) return;
+            diagramStore.save(name, canvas.exportState());
+            renderMyDiagrams();
+        });
+    }
+
+    renderExamples();
+    renderMyDiagrams();
 
     // -------------------------------------------------------------
     // Resizable Right Panel Splitter
@@ -852,6 +828,7 @@ document.addEventListener('DOMContentLoaded', () => {
         triggerSolve();
     }
 
-    // Load simple standard feedback loop on initial start to instantly demonstrate features
-    loadTemplate('feedback');
+    // Load a standard feedback loop on initial start to instantly demonstrate features
+    const defaultTemplate = TEMPLATES.find((t) => t.id === 'sensor-fb') || TEMPLATES[0];
+    if (defaultTemplate) loadDiagramState(defaultTemplate.state);
 });

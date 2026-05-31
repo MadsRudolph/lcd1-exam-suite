@@ -9,6 +9,8 @@
  * rule that governs both port-to-port wiring and take-off branches dragged off
  * an existing wire (which always carry an output signal).
  */
+import { serializeDiagram, instantiateDiagram } from './diagram-io.js';
+
 export function isValidPortConnection(startNode, startPortType, targetNode, targetPortType) {
     if (!targetNode || targetNode === startNode) return false;
     return (
@@ -91,6 +93,22 @@ export class BlockDiagramCanvas {
         this.selectedElement = null;
         this.draggedNode = null;
         this.activeWire = null;
+        this.render();
+        this.onStateChange();
+    }
+
+    // Portable snapshot of the current diagram (see diagram-io.js). Used by the
+    // local save store; the same shape backs the template library.
+    exportState() {
+        return serializeDiagram(this.nodes, this.connections);
+    }
+
+    // Replace the diagram with a portable state (a template or a saved diagram).
+    loadState(state) {
+        this.clear();
+        const { nodes, connections } = instantiateDiagram(state, (p) => this.generateId(p));
+        this.nodes = nodes;
+        this.connections = connections;
         this.render();
         this.onStateChange();
     }

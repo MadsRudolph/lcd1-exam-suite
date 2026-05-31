@@ -207,6 +207,68 @@ h2 {
     margin-top: 4px;
 }
 
+/* Group sub-heading inside the examples list */
+.template-group-label {
+    color: var(--text-secondary);
+    font-size: 10px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin: 6px 2px 2px;
+}
+.template-group-label:first-child { margin-top: 0; }
+
+/* "My Diagrams" header row with the Save button */
+.my-diagrams-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin: 24px 0 12px;
+}
+.btn-save-diagram {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.4);
+    color: var(--accent-green);
+    border-radius: 7px;
+    padding: 5px 10px;
+    font-size: 11px;
+    font-weight: 600;
+    cursor: pointer;
+    font-family: var(--font-outfit);
+    transition: all 0.2s;
+}
+.btn-save-diagram:hover { background: rgba(16, 185, 129, 0.22); }
+
+.my-diagrams-empty {
+    color: var(--text-secondary);
+    font-size: 11px;
+    font-style: italic;
+    padding: 4px 2px;
+}
+
+/* A saved diagram row: open button + rename/delete actions */
+.saved-row {
+    display: flex;
+    align-items: stretch;
+    gap: 4px;
+}
+.saved-row .saved-open { flex: 1; min-width: 0; }
+.saved-action {
+    background: rgba(30, 41, 59, 0.3);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    width: 30px;
+    font-size: 12px;
+    transition: all 0.2s;
+}
+.saved-action:hover { background: rgba(59, 130, 246, 0.08); border-color: var(--accent-blue); color: var(--text-primary); }
+.saved-action.danger:hover { background: rgba(239, 68, 68, 0.12); border-color: var(--accent-red); color: var(--accent-red); }
+
 /* Center Canvas container */
 .canvas-container {
     position: relative;

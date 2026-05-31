@@ -69,24 +69,20 @@
                 Select a node on the canvas to edit its properties.
             </div>
 
-            <h2>Load Exam Templates</h2>
-            <div class="template-list">
-                <button class="template-item" data-template="feedback">
-                    Standard Feedback Loop
-                    <span>Simple G / H negative feedback</span>
+            <h2>Examples</h2>
+            <div class="template-list" id="examples-list">
+                <!-- populated from templates.js -->
+            </div>
+
+            <div class="my-diagrams-header">
+                <h2 style="margin: 0;">My Diagrams</h2>
+                <button class="btn-save-diagram" id="save-diagram-btn" title="Save the current diagram to this computer">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" width="14" height="14"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><path d="M17 21v-8H7v8M7 3v5h8"/></svg>
+                    Save
                 </button>
-                <button class="template-item" data-template="s20q3">
-                    Exam S20 Q3 Diagram
-                    <span>Parallel branch A with loop 1/(s+B)</span>
-                </button>
-                <button class="template-item" data-template="s21q1">
-                    Exam S21 Q1 Diagram
-                    <span>Two forward paths sharing one loop BCF</span>
-                </button>
-                <button class="template-item" data-template="f22q1">
-                    Exam F22 Q1 Diagram
-                    <span>Nested loops H1, H2 (Take-off moved Past E)</span>
-                </button>
+            </div>
+            <div class="template-list" id="my-diagrams-list">
+                <!-- populated from the local diagram store -->
             </div>
 
             <!-- Keyboard Shortcuts -->
