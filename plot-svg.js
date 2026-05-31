@@ -25,8 +25,8 @@ function makeScale(values, lo, hi, log) {
  *   xScale: 'linear'|'log'  (y is always linear; pass dB pre-computed)
  *   xLabel, yLabel, title, width, height
  *   markers: [{ x, y, label, color }]   point markers + label
- *   hlines:  [{ y, label, color }]       horizontal reference lines
- *   vlines:  [{ x, label, color }]       vertical reference lines
+ *   hlines:  [{ y, color }]               horizontal reference lines
+ *   vlines:  [{ x, color }]               vertical reference lines
  *   readout: ["line one", "line two"]    text box, top-left
  */
 export function linePlot(opts) {
@@ -54,15 +54,15 @@ export function linePlot(opts) {
     const xv = sx.min + (sx.max - sx.min) * i / 5;
     const yv = sy.min + (sy.max - sy.min) * (1 - i / 5);
     const xlab = log ? `10^${xv.toFixed(1)}` : fmtTick(xv);
-    parts.push(`<text x="${gx}" y="${pb + 14}" fill="${COL.text}" font-size="9" text-anchor="middle">${xlab}</text>`);
+    parts.push(`<text x="${gx}" y="${pb + 14}" fill="${COL.text}" font-size="9" text-anchor="middle">${escapeXml(xlab)}</text>`);
     parts.push(`<text x="${pl - 6}" y="${gy + 3}" fill="${COL.text}" font-size="9" text-anchor="end">${fmtTick(yv)}</text>`);
   }
   parts.push(`<rect x="${pl}" y="${pt}" width="${pr - pl}" height="${pb - pt}" fill="none" stroke="${COL.axis}"/>`);
   if (opts.xLabel) parts.push(`<text x="${(pl + pr) / 2}" y="${H - 4}" fill="${COL.text}" font-size="10" text-anchor="middle">${escapeXml(opts.xLabel)}</text>`);
   if (opts.yLabel) parts.push(`<text x="12" y="${(pt + pb) / 2}" fill="${COL.text}" font-size="10" text-anchor="middle" transform="rotate(-90 12 ${(pt + pb) / 2})">${escapeXml(opts.yLabel)}</text>`);
 
-  for (const v of opts.vlines || []) parts.push(`<line x1="${px(v.x)}" y1="${pt}" x2="${px(v.x)}" y2="${pb}" stroke="${v.color || "#f59e0b"}" stroke-dasharray="4 3"/>`);
-  for (const h of opts.hlines || []) parts.push(`<line x1="${pl}" y1="${py(h.y)}" x2="${pr}" y2="${py(h.y)}" stroke="${h.color || "#f59e0b"}" stroke-dasharray="4 3"/>`);
+  for (const v of opts.vlines || []) parts.push(`<line x1="${px(v.x)}" y1="${pt}" x2="${px(v.x)}" y2="${pb}" stroke="${escapeXml(v.color || "#f59e0b")}" stroke-dasharray="4 3"/>`);
+  for (const h of opts.hlines || []) parts.push(`<line x1="${pl}" y1="${py(h.y)}" x2="${pr}" y2="${py(h.y)}" stroke="${escapeXml(h.color || "#f59e0b")}" stroke-dasharray="4 3"/>`);
 
   for (const s of opts.series) {
     const pts = [];
@@ -70,14 +70,15 @@ export function linePlot(opts) {
       const X = px(s.x[i]), Y = py(s.y[i]);
       if (Number.isFinite(X) && Number.isFinite(Y)) pts.push(`${X.toFixed(2)},${Y.toFixed(2)}`);
     }
-    const dash = s.dash ? ` stroke-dasharray="${s.dash}"` : "";
-    parts.push(`<polyline fill="none" stroke="${s.color || "#60a5fa"}" stroke-width="1.6"${dash} points="${pts.join(" ")}"/>`);
+    const stroke = escapeXml(s.color || "#60a5fa");
+    const dash = s.dash ? ` stroke-dasharray="${escapeXml(s.dash)}"` : "";
+    parts.push(`<polyline fill="none" stroke="${stroke}" stroke-width="1.6"${dash} points="${pts.join(" ")}"/>`);
   }
 
   for (const mk of opts.markers || []) {
     const X = px(mk.x), Y = py(mk.y);
     if (!Number.isFinite(X) || !Number.isFinite(Y)) continue;
-    parts.push(`<circle cx="${X.toFixed(2)}" cy="${Y.toFixed(2)}" r="3" fill="${mk.color || "#10b981"}"/>`);
+    parts.push(`<circle cx="${X.toFixed(2)}" cy="${Y.toFixed(2)}" r="3" fill="${escapeXml(mk.color || "#10b981")}"/>`);
     if (mk.label) parts.push(`<text x="${(X + 5).toFixed(2)}" y="${(Y - 5).toFixed(2)}" fill="${COL.fg}" font-size="9">${escapeXml(mk.label)}</text>`);
   }
 
