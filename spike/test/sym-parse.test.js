@@ -32,3 +32,16 @@ test("10/(s^2+2s)", () => {
 test("malformed input throws", () => {
   assert.throws(() => parseExprToTF("K/("));
 });
+
+test("unary minus", () => {
+  assert.equal(str(parseExprToTF("-K")), "-K | 1");
+  assert.equal(str(parseExprToTF("-2")), "-2 | 1");
+  assert.equal(str(parseExprToTF("-K/(s+1)")), "-K | 1,1");
+  // binary minus still works
+  assert.equal(str(parseExprToTF("s-1")), "-1,1 | 1");
+});
+
+test("rejects malformed numbers and non-integer exponents", () => {
+  assert.throws(() => parseExprToTF("1..2"));
+  assert.throws(() => parseExprToTF("s^2.5"));
+});

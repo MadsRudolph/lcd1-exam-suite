@@ -11,7 +11,9 @@ function tokenize(src) {
         if ("+-*/^()".includes(ch)) { tokens.push({ t: ch }); i++; continue; }
         if (/[0-9.]/.test(ch)) {
             let j = i; while (j < s.length && /[0-9.]/.test(s[j])) j++;
-            tokens.push({ t: "num", v: s.slice(i, j) }); i = j; continue;
+            const raw = s.slice(i, j);
+            if (!/^[0-9]+(\.[0-9]+)?$/.test(raw)) throw new Error(`Malformed number '${raw}' in '${src}'`);
+            tokens.push({ t: "num", v: raw }); i = j; continue;
         }
         if (/[A-Za-z_]/.test(ch)) {
             let j = i; while (j < s.length && /[A-Za-z0-9_]/.test(s[j])) j++;
@@ -57,6 +59,7 @@ export function parseExprToTF(src) {
             next();
             const e = next();
             if (!e || e.t !== "num") throw new Error(`Expected exponent in '${src}'`);
+            if (!/^[0-9]+$/.test(e.v)) throw new Error(`Exponent must be a non-negative integer in '${src}'`);
             const n = parseInt(e.v, 10);
             let r = SymTF.one();
             for (let k = 0; k < n; k++) r = r.mul(b);
@@ -64,17 +67,26 @@ export function parseExprToTF(src) {
         }
         return b;
     }
+    function unary() {
+        const t = peek();
+        if (t && (t.t === "-" || t.t === "+")) {
+            next();
+            const u = unary();
+            return t.t === "-" ? u.neg() : u;
+        }
+        return factor();
+    }
     function startsFactor(t) { return t && (t.t === "num" || t.t === "id" || t.t === "("); }
     function term() {
-        let r = factor();
+        let r = unary();
         for (;;) {
             const t = peek();
             if (t && (t.t === "*" || t.t === "/")) {
                 next();
-                const f = factor();
+                const f = unary();
                 r = t.t === "*" ? r.mul(f) : r.div(f);
             } else if (startsFactor(t)) {           // implicit multiplication (juxtaposition)
-                r = r.mul(factor());
+                r = r.mul(unary());
             } else break;
         }
         return r;
