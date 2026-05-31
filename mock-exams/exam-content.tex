@@ -63,31 +63,38 @@
 transfer function $\dfrac{Y(s)}{R(s)}$? (1 Point)}
 
 \begin{center}
-\begin{tikzpicture}[>=Latex,node distance=1.5cm,
-   block/.style={draw,rectangle,minimum height=0.95cm,minimum width=1.25cm},
-   sum/.style={draw,circle,inner sep=0pt,minimum size=6.5mm}]
- \node (in) {$R(s)$};
- \node[sum,right=0.9cm of in] (s1) {};
- \node[block,right=1.1cm of s1] (g1) {$\dfrac{2}{s+1}$};
- \node[sum,right=1.1cm of g1] (s2) {};
- \node[block,right=1.1cm of s2] (g2) {$\dfrac{5}{s+4}$};
- \coordinate (p) at ($(g2.east)+(0.55,0)$);
- \coordinate (q) at ($(p)+(0.6,0)$);
- \node[right=1.7cm of g2] (out) {$Y(s)$};
- \node[block,below=1.0cm of g2] (h2) {$2$};
+\begin{tikzpicture}[>=Latex,
+   block/.style={draw,thick,rectangle,minimum height=1.0cm,minimum width=1.35cm},
+   sum/.style={draw,thick,circle,minimum size=7.5mm,inner sep=0pt}]
+ % forward-path nodes (explicit coordinates for a clean layout)
+ \node (in)  at (0,0)    {$R(s)$};
+ \node[sum]   (s1) at (1.8,0)  {};
+ \node[block] (g1) at (3.9,0)  {$\dfrac{2}{s+1}$};
+ \node[sum]   (s2) at (6.2,0)  {};
+ \node[block] (g2) at (8.2,0)  {$\dfrac{5}{s+4}$};
+ \coordinate (p) at (9.8,0);    % inner take-off
+ \coordinate (q) at (10.5,0);   % outer take-off
+ \node (out) at (11.9,0) {$Y(s)$};
+ \node[block] (h2) at (6.2,-1.9) {$2$};
+ % forward wires
  \draw[->] (in) -- (s1);
- \draw[->] (s1) -- node[above,pos=0.15]{\small$+$} (g1);
- \draw[->] (g1) -- node[above,pos=0.15]{\small$+$} (s2);
+ \draw[->] (s1) -- (g1);
+ \draw[->] (g1) -- (s2);
  \draw[->] (s2) -- (g2);
  \draw (g2) -- (q);
  \draw[->] (q) -- (out);
- \fill (p) circle (1.4pt);
- \fill (q) circle (1.4pt);
- % inner feedback H2 = 2 (negative into s2 from below)
+ \fill (p) circle (1.6pt);
+ \fill (q) circle (1.6pt);
+ % summing-junction signs (at the entering ports)
+ \node[font=\small] at ($(s1.north west)+(-0.02,0.04)$) {$+$};
+ \node[font=\small] at ($(s1.south west)+(-0.02,-0.04)$) {$-$};
+ \node[font=\small] at ($(s2.north west)+(-0.02,0.04)$) {$+$};
+ \node[font=\small] at ($(s2.south west)+(-0.02,-0.04)$) {$-$};
+ % inner feedback H2 = 2  (p -> down -> H2 -> up into s2 from below)
  \draw[->] (p) |- (h2.east);
- \draw[->] (h2.west) -| node[pos=0.95,left]{\small$-$} (s2.south);
- % outer unity feedback (negative into s1 from below)
- \draw[->] (q) -- ++(0,-2.05) -| node[pos=0.95,left]{\small$-$} (s1.south);
+ \draw[->] (h2.west) -| (s2.south);
+ % outer unity feedback  (q -> down -> left -> up into s1 from below)
+ \draw[->] (q) -- ++(0,-3.1) -| (s1.south);
 \end{tikzpicture}\\[3pt]
 {\small Figure 1: Block diagram ($H_2=2$, outer unity feedback).}
 \end{center}
