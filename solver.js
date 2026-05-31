@@ -70,6 +70,70 @@ export function solveBlockDiagram(nodes, connections) {
     return transferFunction(nodes, connections, inputNode.id, outputNode.id);
 }
 
+export function collectEndpoints(nodes) {
+    const sources = nodes
+        .filter(n => SOURCE_TYPES.includes(n.type))
+        .map(n => ({ id: n.id, label: n.label }));
+    const sinks = nodes
+        .filter(n => n.type === 'output')
+        .map(n => ({ id: n.id, label: n.label }));
+    return { sources, sinks };
+}
+
+// Open-loop loop gain at a cut wire X -> Y. Returns L(s) in the 1 + L = 0 convention.
+export function loopGain(nodes, connections, cutConnId) {
+    const cut = connections.find(c => c.id === cutConnId);
+    if (!cut) throw new Error("Wire not found");
+
+    const VSRC = '__vsrc__';
+    const VSINK = '__vsink__';
+
+    const tempNodes = [
+        ...nodes,
+        { id: VSRC,  type: 'input',  value: '1', label: 'L_{in}',  x: 0, y: 0 },
+        { id: VSINK, type: 'output', value: '1', label: 'L_{out}', x: 0, y: 0 }
+    ];
+    const tempConns = connections
+        .filter(c => c.id !== cutConnId)
+        .concat([
+            // Inject the test signal where the cut wire fed (preserve its sign).
+            { id: '__vsrc_wire__',  fromNode: VSRC, toNode: cut.toNode,   sign: cut.sign },
+            // Read the signal that comes back around to the cut wire's source.
+            { id: '__vsink_wire__', fromNode: cut.fromNode, toNode: VSINK, sign: '' }
+        ]);
+
+    const measured = transferFunction(tempNodes, tempConns, VSRC, VSINK);
+    return negateResult(measured);
+}
+
+// L(s) = -(measured): the raw break measures -GH for negative feedback; negate to GH.
+function negateResult(result) {
+    if (result.tf) {
+        const negTf = result.tf.clone();
+        negTf.num = negTf.num.multiplyScalar(-1);
+        return {
+            initialEquations: [],
+            steps: [],
+            tf: negTf,
+            finalTransferFunction: {
+                toKaTeX: () => negTf.toKaTeX(),
+                toFormulaString: () => negTf.toFormulaString()
+            }
+        };
+    }
+    const k = result.finalTransferFunction.toKaTeX();
+    const f = result.finalTransferFunction.toFormulaString();
+    return {
+        initialEquations: [],
+        steps: [],
+        tf: null,
+        finalTransferFunction: {
+            toKaTeX: () => `-\\left(${k}\\right)`,
+            toFormulaString: () => `-(${f})`
+        }
+    };
+}
+
 // -------------------------------------------------------------------------
 // 1. EXACT RATIONAL NUMERIC SOLVER
 // -------------------------------------------------------------------------
