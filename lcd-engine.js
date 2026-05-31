@@ -17,11 +17,24 @@ import { matchOptions, applyStableRangeMatch } from "./spike/match.js";
 import { symbolicEquivTest } from "./symbolic/equiv.js";
 import { parseExprToTF } from "./symbolic/parse-expr.js";
 import { order as symOrder, systemType, staticGain } from "./symbolic/analysis.js";
-import { essStep, essRamp } from "./symbolic/ess.js";
+import { essStep, essRamp, essDisturbanceStep } from "./symbolic/ess.js";
+import { solveForSymbol } from "./symbolic/solve-symbol.js";
+import { linearizeFirstOrder } from "./symbolic/linearize.js";
+import { renderSymTF } from "./symbolic/render.js";
 import { formByFn } from "./lcd-forms.js";
 
 // A RatFunc → readable string (denominator is 1 after normalization for a polynomial).
 const ratStr = (rf) => (rf === Infinity ? "∞" : rf.den.isConstant() ? rf.num.toString() : `(${rf.num.toString()}) / (${rf.den.toString()})`);
+const ratLatex = (rf) => (rf === Infinity ? "\\infty" : rf.den.isConstant() ? rf.num.toString() : `\\frac{${rf.num.toString()}}{${rf.den.toString()}}`);
+// Parse an operating point "x=0, u=2" into { x: "0", u: "2" }.
+const parsePoint = (str) => {
+  const m = {};
+  for (const part of String(str || "").split(",")) {
+    const [k, v] = part.split("=");
+    if (k && v !== undefined) m[k.trim()] = v.trim();
+  }
+  return m;
+};
 
 // ---- formatting ----
 const fmt = (x) => {
@@ -191,6 +204,32 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
           ["e_ss (unit step)", ratStr(essStep(L))],
           ["e_ss (unit ramp)", ratStr(essRamp(L))],
         ];
+        break;
+      }
+      case "symbolic_disturbance_ess": {
+        const e = essDisturbanceStep({ Gd: parseExprToTF(inp.Gd), L: parseExprToTF(inp.L) });
+        out.latex = `e_{d,ss} = ${ratLatex(e)}`;
+        out.summary = [["e_dss (unit step)", ratStr(e)]];
+        break;
+      }
+      case "solve_symbol": {
+        const sym = (inp.symbol || "").trim();
+        const r = solveForSymbol(inp.equation, sym);
+        const valStr = Array.isArray(r.value) ? r.exact : ratStr(r.value);
+        out.latex = `${sym || "x"} = ${Array.isArray(r.value) ? r.exact : ratLatex(r.value)}`;
+        out.summary = [[sym || "x", valStr], ["decimal", r.exact]];
+        break;
+      }
+      case "linearize_tf": {
+        const G = linearizeFirstOrder({
+          f: inp.f,
+          stateVar: (inp.stateVar || "x").trim(),
+          inputVar: (inp.inputVar || "u").trim(),
+          point: parsePoint(inp.point),
+        });
+        const rendered = renderSymTF(G);
+        out.latex = rendered.toKaTeX();
+        out.summary = [["G(s)", rendered.toFormulaString()]];
         break;
       }
       case "symbolic_equiv": {

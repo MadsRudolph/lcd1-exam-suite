@@ -73,6 +73,43 @@ test("canonical form is reported for the reference", () => {
   assert.ok(res.canonicalLatex.includes("frac"));
 });
 
+// Regression for docs/equiv-stress-findings.md: comparing the keyed reference
+// against a *different* multi-symbol distractor must terminate (no multivariate-GCD
+// blow-up) and verdict no_match. These hung >90s before the GCD-free equality fix.
+test("termination: E21 Q2 reference vs distractor (shared denominator) → no_match, fast", () => {
+  const res = symbolicEquivTest("gamma/(s^2+alpha*s+beta)*(b*s+c)/(a*s)",
+    ["(gamma*s+1)/(s^2+alpha*s+beta)*(b*s+c)/(a*s)"]);
+  assert.deepEqual(flags(res), ["no_match"]);
+});
+
+test("termination: E22 Q18 reference vs distractor → no_match", () => {
+  const res = symbolicEquivTest("a/(b*s^2+s+a*c)", ["a*s/(b*s+1+a*c)"]);
+  assert.deepEqual(flags(res), ["no_match"]);
+});
+
+test("termination: E25 Q9 reference vs distractor → no_match", () => {
+  const res = symbolicEquivTest("(C1+C2)*s/((s+a)*s+(C1+C2)*(1+b*s))", ["C1*s/((s+a)*s+C1+C2)"]);
+  assert.deepEqual(flags(res), ["no_match"]);
+});
+
+test("termination: E15 Q9 reference vs distractor → no_match", () => {
+  const res = symbolicEquivTest(
+    "b*d*(gamma*s+1)/((alpha*s+beta)*(s+a)*(s+c)+b*d*(gamma*s+1))",
+    ["b*d*(gamma*s+1)/((alpha*s+beta)*(alpha*s+1)*(c*s+1)+b*d*(gamma*s+1))"]);
+  assert.deepEqual(flags(res), ["no_match"]);
+});
+
+test("E22 Q18 full option set: crowns exactly the keyed answer among real distractors", () => {
+  const res = symbolicEquivTest("a/(b*s^2+s+a*c)", [
+    "a*s/(b*s+1+a*c)",        // wrong
+    "a*c/(b*s+1)*1/s",        // wrong
+    "a/(b*s^2+a*c)",          // wrong (dropped s term)
+    "a/(s^2+b*s+a*c)",        // wrong (b on wrong term)
+    "a/(b*s^2+s+a*c)",        // correct
+  ]);
+  assert.deepEqual(flags(res), ["no_match", "no_match", "no_match", "no_match", "match"]);
+});
+
 test("stripOptionLabel keeps plain expressions intact", () => {
   assert.equal(stripOptionLabel("K/(s+1)"), "K/(s+1)");
   assert.equal(stripOptionLabel("(s+1)/(s+2)"), "(s+1)/(s+2)");

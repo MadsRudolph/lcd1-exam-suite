@@ -170,6 +170,35 @@ export const FORMS = [
     explanation: "System type (poles at the origin), order, static loop gain K₀ = lim s^N·L, and the steady-state error to a unit step (1/(1+K₀) for type 0, 0 for type ≥ 1) and unit ramp (1/Kv) — computed symbolically.",
   },
   {
+    pattern: "Analysis", title: "Disturbance ess", variant: "step at a named node", fn: "symbolic_disturbance_ess",
+    resultKind: "INFO",
+    fields: [
+      { name: "Gd", label: "Gd(s) — injection node → output (loop open)", kind: "str", placeholder: "a", tooltip: "Transfer function from the disturbance injection point to the output, with the loop opened." },
+      { name: "L", label: "L(s) — loop gain seen at that node", kind: "str", placeholder: "a*k*(s+b)/(s^2+c*s+1)", tooltip: "The loop gain (return ratio) around the injection node, parameters kept symbolic." },
+    ],
+    explanation: "Steady-state error from a unit-step disturbance: e_dss = −lim_{s→0} Gd/(1+L). Returns 0 when an integrator in the loop rejects the disturbance.",
+  },
+  {
+    pattern: "Analysis", title: "Solve for a symbol", variant: "a/(1+a)=2/3 → a=2", fn: "solve_symbol",
+    resultKind: "INFO",
+    fields: [
+      { name: "equation", label: "Equation (one '=', unknown anywhere)", kind: "str", placeholder: "1/(1+0.4*K1) = 0.4", tooltip: "A single-unknown static equation in the symbol named below — e.g. a/(1+a)=2/3, or 1/(1+0.4*K1)=0.4. Linear unknowns solve exactly; numeric quadratics return both roots." },
+      { name: "symbol", label: "Solve for", kind: "str", placeholder: "K1", tooltip: "The unknown symbol to solve for." },
+    ],
+    explanation: "Solves a single-unknown equation symbolically (an ess or gain relation read off the loop). Linear unknowns give an exact closed form; numeric quadratics give both roots.",
+  },
+  {
+    pattern: "Analysis", title: "Linearize → TF", variant: "ẋ=f(x,u) at an operating point", fn: "linearize_tf",
+    resultKind: "INFO",
+    fields: [
+      { name: "f", label: "f(x,u) in ẋ = f(x,u)", kind: "str", placeholder: "c*b*u - a*x", tooltip: "Right-hand side of a first-order nonlinear state equation — polynomial/rational in the state and input symbols and any literal parameters." },
+      { name: "stateVar", label: "state symbol", kind: "str", default: "x", placeholder: "x", tooltip: "The state variable name." },
+      { name: "inputVar", label: "input symbol", kind: "str", default: "u", placeholder: "u", tooltip: "The input variable name." },
+      { name: "point", label: "operating point", kind: "str", placeholder: "x=0, u=0", tooltip: "Operating values for the state and input, e.g. x=0, u=2. Every other parameter stays symbolic." },
+    ],
+    explanation: "Small-signal transfer function G(s)=ΔX/ΔU = (∂f/∂u)/(s − ∂f/∂x) at the operating point. Polynomial/rational nonlinearities only (no sin/exp/√).",
+  },
+  {
     pattern: "Analysis", title: "Symbolic equivalence", variant: "are these answers algebraically equal?", fn: "symbolic_equiv",
     resultKind: "INFO",
     fields: [

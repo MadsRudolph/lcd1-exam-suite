@@ -61,7 +61,13 @@ export function symbolicEquivTest(refExpr, optionLines) {
       options.push({ raw_text, flag: "unparseable", note: "" });
       continue;
     }
-    const equal = ref.sub(cand).simplify().isZero();
+    // Equality is a zero-polynomial test on the cross-multiplied numerator
+    // (n1·d2 − n2·d1 ≡ 0), NOT a canonical reduction. This deliberately avoids
+    // SymTF.simplify()'s multivariate GCD, which can blow up on the *non-zero*
+    // difference of two different 5–7-symbol rational functions (the reference
+    // vs. a wrong option) and would freeze the synchronous app. The canonical
+    // form shown for the reference is simplified once, separately, above.
+    const equal = ref.sub(cand).isZero();
     options.push({
       raw_text,
       flag: equal ? "match" : "no_match",
