@@ -5,6 +5,7 @@ import { FORMS, formByFn } from "./lcd-forms.js";
 import { runSolver, routeQuestion } from "./lcd-engine.js";
 import { setHandoff, consumeHandoff } from "./lcd-handoff.js";
 import { solveBlockDiagram } from "./solver.js";
+import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
 
 const VERSION = "v1.2.1";
 
@@ -434,6 +435,33 @@ function doPaste(text, selectForm, optEl, matchSel, matchWrap) {
   solve();
 }
 
+// Tabbed Step | Bode | Nyquist | Pole-Zero panel from a buildPlotData() object.
+function renderPlotPanel(pd) {
+  const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
+  const tabs = el("div", { style: "display:flex;gap:6px;" });
+  const view = el("div", { style: "overflow-x:auto;" });
+  const views = {
+    Step: () => stepPlot(pd.step, pd.annotations.step || {}),
+    Bode: () => bodePlot(pd.bode, pd.annotations.bode || {}),
+    Nyquist: () => nyquistPlot(pd.nyquist, pd.annotations.nyquist || {}),
+    "Pole-Zero": () => poleZeroPlot(pd.poleZero),
+  };
+  const show = (name) => {
+    view.innerHTML = views[name](); // generated SVG string — safe, no user markup
+    [...tabs.children].forEach((b) => { b.style.opacity = b.textContent === name ? "1" : "0.55"; });
+  };
+  for (const name of Object.keys(views)) {
+    const b = el("button", { style:
+      `background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);` +
+      `border-radius:8px;padding:6px 12px;font:600 11px 'Outfit';cursor:pointer;` }, name);
+    b.onclick = () => show(name);
+    tabs.append(b);
+  }
+  wrap.append(tabs, view);
+  show("Step");
+  return wrap;
+}
+
 function renderResults(body, res) {
   body.innerHTML = "";
   if (!res.ok) {
@@ -480,6 +508,7 @@ function renderResults(body, res) {
   }
 
   if (res.note) body.append(el("div", { style: `color:#f59e0b;font:13px 'Inter';line-height:1.5;` }, res.note));
+  if (res.plotData) body.append(renderPlotPanel(res.plotData));
 }
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
