@@ -43,3 +43,21 @@ test("analyzeNumeric of an integrator 1/s: DC gain and final value are Infinity"
   assert.equal(a.finalValue, Infinity);
   assert.equal(a.type, 1);
 });
+
+import { analyzeSymbolic, isSymbolicTf } from "../../lcd-engine.js";
+
+test("isSymbolicTf detects literal parameters but not s/numbers", () => {
+  assert.equal(isSymbolicTf("12/((s+2)*(s+3))"), false);
+  assert.equal(isSymbolicTf("K/(s*(s+a))"), true);
+  assert.equal(isSymbolicTf("1/(s^2+2*s+10)"), false);
+});
+
+test("analyzeSymbolic of K/(s*(s+a)): closed-loop K/(s^2+as+K), type 1", () => {
+  const a = analyzeSymbolic("K/(s*(s+a))");
+  assert.equal(a.error, null);
+  assert.equal(a.closedLoop.replace(/\s+/g, ""), "K/(s^2+as+K)");
+  assert.equal(a.type, 1);
+  assert.equal(a.order, 2);
+  assert.equal(a.essStep, "0");
+  assert.equal(a.essRamp.replace(/\s+/g, ""), "a/K");
+});

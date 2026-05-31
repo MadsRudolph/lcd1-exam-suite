@@ -380,6 +380,38 @@ function typeOrder(G) {
 
 const guard = (fn, fallback = null) => { try { const v = fn(); return v === undefined ? fallback : v; } catch { return fallback; } };
 
+// True when the expression contains a literal parameter (any letter other than s).
+export function isSymbolicTf(str) {
+  const cleaned = String(str).toLowerCase().replace(/\s+/g, "").replace(/[0-9s^+\-*/().]/g, "");
+  return cleaned.length > 0;
+}
+
+export function analyzeSymbolic(Gstr) {
+  let L;
+  try { L = parseExprToTF(Gstr); } catch (e) { return { error: e.message }; }
+  const safe = (fn) => { try { return fn(); } catch { return null; } };
+  // Like ratStr but omits parens around single-term numerator/denominator.
+  const symStr = (rf) => {
+    if (rf === Infinity) return "∞";
+    const ns = rf.num.toString();
+    const ds = rf.den.toString();
+    if (rf.den.isConstant()) return ns;
+    const needsNParen = ns.includes("+") || ns.includes("-");
+    const needsDParen = ds.includes("+") || ds.includes("-");
+    return `${needsNParen ? `(${ns})` : ns} / ${needsDParen ? `(${ds})` : ds}`;
+  };
+  const cl = safe(() => renderSymTF(feedback(L)).toFormulaString());
+  return {
+    error: null,
+    closedLoop: cl,
+    type: safe(() => systemType(L)),
+    order: safe(() => symOrder(L)),
+    K0: safe(() => symStr(staticGain(L))),
+    essStep: safe(() => symStr(essStep(L))),
+    essRamp: safe(() => symStr(essRamp(L))),
+  };
+}
+
 export function analyzeNumeric(Gstr) {
   let G;
   try { G = parseTf(Gstr); } catch (e) { return { error: e.message }; }
