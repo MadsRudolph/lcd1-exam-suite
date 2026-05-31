@@ -83,7 +83,27 @@ export function extractTf(textIn) {
   // Inline: label = <expr on the same line>.
   let m = new RegExp(TF_LABEL + "\\s*=[ \\t]*(\\S[^\\n]*)", "i").exec(text);
   if (m) {
-    const tf = finalizeTf(takeExpr(m[1]));
+    const inlineExpr = takeExpr(m[1]);
+    // PDF copy often breaks the fraction bar: the numerator sits on the label
+    // line ("G(s) =20") and the denominator on the next line ("s(s+2)(s+5)",
+    // sometimes with prose trailing it, e.g. "s(s+ 21), find ..."). If the inline
+    // part is a bare numerator, try rejoining it with the next line's math prefix.
+    if (inlineExpr && !inlineExpr.includes("/")) {
+      const after = text.slice(m.index + m[0].length);
+      const nextLine = (after.split(/\r?\n/).map((s) => s.trim()).find(Boolean)) || "";
+      let den = takeExpr(nextLine);
+      // A parenthesised denominator ends at its last ')'; drop any trailing prose.
+      if (den.includes("(")) den = den.slice(0, den.lastIndexOf(")") + 1);
+      den = den.trim();
+      if (den && /s/.test(den)) {
+        // A bare symbolic gain numerator ("G(s) = K / ...") is the loop gain;
+        // normalise it to 1 so the plant parses (stable-K etc. supply K).
+        const numer = /^K_?[Pp]?$/.test(inlineExpr.replace(/\s+/g, "")) ? "1" : inlineExpr;
+        const joined = finalizeTf(`(${numer})/(${den})`);
+        if (joined) return joined;
+      }
+    }
+    const tf = finalizeTf(inlineExpr);
     if (tf) return tf;
   }
 
@@ -117,6 +137,99 @@ export function extractTf(textIn) {
     if (tf) return tf;
   }
   return null;
+}
+
+// Normalise a copy-pasted polynomial/TF fragment to solver syntax:
+//   "s2+ 4s+K"  ->  "s**2+4*s+K"      "(s+ 2)( s+ 5)" -> "(s+2)*(s+5)"
+function normalizePolyStr(s) {
+  return s
+    .replace(/\s+/g, "")
+    .replace(/(?<![A-Za-z_*])s(\d+)/g, "s**$1") // s2 -> s**2 (not the 2 in s**2)
+    .replace(/(\d)(s|\()/g, "$1*$2") // 4s -> 4*s, 3( -> 3*(
+    .replace(/\)\s*\(/g, ")*(") // )( -> )*(
+    .replace(/\)\s*s/g, ")*s"); // )s -> )*s
+}
+
+// Closed-loop TF that keeps a symbolic gain K, e.g. "K/(s**2+4*s+K)". extractTf
+// can't be used because parseTf rejects the symbolic K; instead we reconstruct
+// the string and validate it by substituting K=1.
+export function extractClosedLoopTf(textIn) {
+  const text = normalizeDashes(textIn);
+  const lines = text.split(/\r?\n/);
+  const anchor = /closed[- ]?loop\s+transfer\s+function/i;
+  for (let i = 0; i < lines.length; i++) {
+    if (!anchor.test(lines[i])) continue;
+    // numerator = math tail of the anchor line (often stuck: "functionK")
+    const tail = lines[i].replace(/.*transfer\s+function/i, "");
+    const num = normalizePolyStr(takeExpr(tail)) || "K";
+    // denominator = math prefix of the next non-empty line ("s2+ 4s+K. Choose")
+    for (const nxt of lines.slice(i + 1)) {
+      if (!nxt.trim()) continue;
+      let den = takeExpr(nxt).replace(/\.+\s*$/, "").trim();
+      den = normalizePolyStr(den);
+      if (!/s/.test(den)) break;
+      const cand = `${num}/(${den})`;
+      try {
+        parseTf(cand.replace(/\bK_?[Pp]?\b/g, "1")); // valid once K is numeric?
+        return cand;
+      } catch { /* not a clean 2nd-order string */ }
+      break;
+    }
+    break;
+  }
+  return null;
+}
+
+// Linear constant-coefficient ODE in y (driven by u) -> coefficient lists for
+// solve_ode_to_tf. Handles the derivative notations a PDF copy produces:
+//   ÿ (¨y, U+00A8/combining U+0308), ẏ (˙y, U+02D9/U+0307), y'' / y', \ddot/\dot,
+//   y(2)/y(1).  e.g. "ÿ + 4ẏ + 13y = 2u"  ->  y_coeffs "1,4,13", u_coeffs "2".
+function coeffOf(raw) {
+  const c = raw.replace(/\s+/g, "");
+  if (c === "" || c === "+") return 1;
+  if (c === "-") return -1;
+  const v = parseFloat(c);
+  return Number.isNaN(v) ? 1 : v;
+}
+function markDerivs(s, v) {
+  // Replace each derivative-of-v with an order marker that does NOT keep the
+  // variable letter, so the later plain-v pass can't re-match inside a marker.
+  return s
+    .replace(new RegExp(`\\\\ddot\\s*\\{?\\s*${v}\\s*\\}?`, "gi"), " @2 ")
+    .replace(new RegExp(`\\\\dot\\s*\\{?\\s*${v}\\s*\\}?`, "gi"), " @1 ")
+    .replace(new RegExp(`[\\u00A8\\u0308]\\s*${v}`, "g"), " @2 ")
+    .replace(new RegExp(`[\\u02D9\\u0307]\\s*${v}`, "g"), " @1 ")
+    .replace(new RegExp(`${v}\\s*(?:''|\\u2032\\u2032|\\u2033)`, "g"), " @2 ")
+    .replace(new RegExp(`${v}\\s*(?:'|\\u2032)`, "g"), " @1 ")
+    .replace(new RegExp(`${v}\\s*\\(\\s*2\\s*\\)`, "g"), " @2 ")
+    .replace(new RegExp(`${v}\\s*\\(\\s*1\\s*\\)`, "g"), " @1 ");
+}
+function polyFromTerms(side, v) {
+  // plain variable (not part of a word) is order 0
+  side = markDerivs(side, v).replace(new RegExp(`(?<![A-Za-z_])${v}`, "g"), " @0 ");
+  const re = /([+-]?\s*\d*\.?\d*)\s*\*?\s*@(\d)/g;
+  const order = {};
+  let m, max = -1;
+  while ((m = re.exec(side))) {
+    const ord = parseInt(m[2], 10);
+    order[ord] = (order[ord] || 0) + coeffOf(m[1]);
+    if (ord > max) max = ord;
+  }
+  if (max < 0) return null;
+  const out = [];
+  for (let k = max; k >= 0; k--) out.push(order[k] || 0);
+  return out;
+}
+export function extractOde(textIn) {
+  const t = normalizeDashes(textIn);
+  const eq = /([^=\n]*=[^=\n]*)/.exec(t);
+  if (!eq) return null;
+  const [lhs, rhs] = eq[1].split("=");
+  if (rhs === undefined) return null;
+  const y = polyFromTerms(lhs, "y");
+  if (!y) return null;
+  const u = polyFromTerms(rhs, "u") || [1];
+  return { y_coeffs: y.join(","), u_coeffs: u.join(",") };
 }
 
 // ---- options ------------------------------------------------------------
@@ -269,8 +382,8 @@ export function parseQuestion(textIn) {
 
   // 1. ODE -> TF (P1)
   if (/\bodes?\b/.test(low) || low.includes("differential equation") ||
-      /\by\s*\(\d+\)\s*\(t\)/.test(low) || /[̈̇]y|y['′]{1,3}/.test(text)) {
-    return { solver_function: "solve_ode_to_tf", inputs: {}, options };
+      /\by\s*\(\d+\)\s*\(t\)/.test(low) || /[¨˙̈̇]y|y['′]{1,3}/.test(text)) {
+    return { solver_function: "solve_ode_to_tf", inputs: extractOde(text) || {}, options };
   }
   // 2. State-space -> TF (P1)
   if (low.includes("state matrix") || low.includes("state-space") || low.includes("state space")) {
@@ -335,11 +448,17 @@ export function parseQuestion(textIn) {
       low.includes("damped frequency") || low.includes("omega_d") || low.includes("omega_n") ||
       low.includes("natural frequency") || low.includes("second order") || low.includes("second-order") ||
       /\bt_?p\b/.test(low) || low.includes("settling") || low.includes("peak time")) {
-    const cl = extractTf(text) || "K / (s**2 + 2*s + K)";
+    const cl = extractClosedLoopTf(text) || extractTf(text) || "K / (s**2 + 2*s + K)";
     const inputs = { closed_loop_str: cl };
     Object.assign(inputs, extract2ndOrderSpec(text));
     const routing = { solver_function: "solve_closed_loop_2nd_order", inputs, options };
-    const mk = askedMetric(low);
+    // "Choose/find K so that <spec>" solves FOR K, so the options are K values
+    // (match on K) even though the spec metric is also named. (PDF copy may stick
+    // K to the next word — "Choose Kso" — so we don't require a trailing boundary.)
+    const asksForK =
+      /\b(?:choose|find|determine|select|compute)\s+k/i.test(text) ||
+      /value\s+of\s+k/i.test(low) || /\bgain\s+k/i.test(low);
+    const mk = asksForK ? "K" : askedMetric(low);
     if (mk) routing.match_key = mk;
     return routing;
   }
@@ -351,7 +470,11 @@ export function parseQuestion(textIn) {
       const gain = extractPGain(text);
       const gIn = gain !== null && gain !== 1.0 ? `${gain}*(${plant})` : plant;
       const routing = { solver_function: "solve_ess_table", inputs: { G: gIn }, options };
-      if (low.includes("step") && !low.includes("ramp") && !low.includes("parabol")) routing.match_key = "ess_step";
+      // Match against the ess for the specific input named, not the whole dict
+      // (which would ambiguously match type/Kv/0 against the options).
+      if (low.includes("parabol") || low.includes("acceleration")) routing.match_key = "ess_parabola";
+      else if (low.includes("ramp") || low.includes("velocity")) routing.match_key = "ess_ramp";
+      else if (low.includes("step")) routing.match_key = "ess_step";
       return routing;
     }
     return { solver_function: "solve_KP_from_ess", inputs: extractEssInputs(text), options };
