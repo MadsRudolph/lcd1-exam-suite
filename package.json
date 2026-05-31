@@ -7,7 +7,7 @@
     "build": "npx esbuild app.js --bundle --outfile=bundle.js --format=iife",
     "start": "electron .",
     "package": "electron-packager . LCD1ExamSuite --platform=win32 --arch=x64 --overwrite",
-    "test": "node --test spike/test/"
+    "test": "npm test --prefix spike"
   },
   "keywords": ["control-systems", "dtu", "34722", "offline", "electron"],
   "author": "",
