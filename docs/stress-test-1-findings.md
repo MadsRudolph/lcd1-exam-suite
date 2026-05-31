@@ -122,3 +122,9 @@ not just the CLI.
    given the same string (finding 2).
 - Added in-app transfer-function plots (step/Bode/Nyquist/pole-zero), annotated,
   computed in the JS engine — see docs/superpowers/specs/2026-05-31-transfer-function-plots-design.md.
+- Plots are now interactive: hover any plot for a crosshair + value read-off
+  (t/y, ω/|G|/∠G, Re/Im, pole·zero) — see
+  docs/superpowers/specs/2026-05-31-plot-hover-interactivity-design.md.
+- Block Diagram canvas is now an infinite zoom/pan surface (scroll to zoom toward
+  the cursor, drag empty space to pan, +/−/Reset/Fit controls) — see
+  docs/superpowers/specs/2026-05-31-canvas-zoom-pan-design.md.
