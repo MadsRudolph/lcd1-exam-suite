@@ -31,8 +31,11 @@ const addScaledIdentity = (A, c) => A.map((row, i) => row.map((v, j) => v + (i =
  * G(s) = C (sI - A)^{-1} B + D for SISO, via the Faddeev–Leverrier algorithm:
  *   adj(sI-A) = Σ M_k s^{n-k},  det(sI-A) = s^n + a_1 s^{n-1} + ... + a_n.
  */
+const MAX_STATE_DIM = 64; // exam state-space systems are tiny; cap to avoid n^4 blowup
+
 export function solveStateSpaceToTf(A, B, C, D) {
   const n = A.length;
+  if (n > MAX_STATE_DIM) throw new Error(`state matrix too large (max dimension ${MAX_STATE_DIM})`);
   if (A.some((r) => r.length !== n)) throw new Error("A must be square");
   if (B.length !== n || B[0].length !== 1) throw new Error(`B must be (${n},1)`);
   if (C.length !== 1 || C[0].length !== n) throw new Error(`C must be (1,${n})`);

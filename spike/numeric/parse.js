@@ -7,7 +7,9 @@
 //   power := atom ('**' unary)?      (exponent must be an integer constant)
 //   atom  := number | 's' | '(' expr ')'
 import { NumericTF } from "./tf.js";
-import { polyAdd, polySub, polyMul, polyPow, polyTrim } from "./poly.js";
+import { polyAdd, polySub, polyMul, polyPow, polyTrim, MAX_DEGREE } from "./poly.js";
+
+const MAX_DEPTH = 200; // parser nesting depth guard (prevents stack overflow)
 
 // ---- Rational = { num: Poly, den: Poly } (highest-degree-first) ----
 const R = (num, den = [1]) => ({ num, den });
@@ -88,6 +90,7 @@ function tokenize(src) {
 // ---- recursive-descent parser ----
 function makeParser(toks) {
   let pos = 0;
+  let depth = 0;
   const peek = () => toks[pos];
   const next = () => toks[pos++];
   const expect = (t) => {
@@ -147,6 +150,7 @@ function makeParser(toks) {
       if (!isConst(exp)) throw new Error("Exponent must be a constant");
       const k = constValue(exp);
       if (!Number.isInteger(k)) throw new Error(`Exponent must be an integer, got ${k}`);
+      if (Math.abs(k) > MAX_DEGREE) throw new Error(`exponent ${k} exceeds degree limit (max ${MAX_DEGREE})`);
       return rPow(base, k);
     }
     return base;
@@ -163,9 +167,11 @@ function makeParser(toks) {
       return S;
     }
     if (tk.t === "(") {
+      if (++depth > MAX_DEPTH) throw new Error("expression nesting too deep");
       next();
       const inner = parseExpr();
       expect(")");
+      depth--;
       return inner;
     }
     throw new Error(`Unexpected token '${tk.t}'`);
@@ -180,5 +186,8 @@ export function parseTf(expr) {
   const rational = makeParser(tokenize(expr));
   const num = polyTrim(rational.num);
   const den = polyTrim(rational.den);
+  if (den.every((c) => Math.abs(c) < 1e-12)) {
+    throw new Error("transfer-function denominator is zero");
+  }
   return new NumericTF(num, den);
 }

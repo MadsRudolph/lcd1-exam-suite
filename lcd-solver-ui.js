@@ -238,7 +238,10 @@ function renderResults(body, res) {
       const row = el("div", { style:
         `display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;` +
         `border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};background:${o.flag === "match" ? "rgba(16,185,129,0.08)" : "rgba(30,41,59,0.25)"};font:13px 'JetBrains Mono';` });
-      row.append(el("span", { style: `color:${st.c};` }, o.raw_text), el("span", { style: `color:${st.c};font:600 11px 'Outfit';` }, st.t + (o.note ? `  ${o.note}` : "")));
+      // textContent (NOT innerHTML) — o.raw_text is user-pasted; never inject it as markup.
+      const valSpan = el("span", { style: `color:${st.c};` }); valSpan.textContent = o.raw_text;
+      const tagSpan = el("span", { style: `color:${st.c};font:600 11px 'Outfit';` }); tagSpan.textContent = st.t + (o.note ? `  ${o.note}` : "");
+      row.append(valSpan, tagSpan);
       list.append(row);
     }
     body.append(list);
