@@ -104,6 +104,60 @@ function renderPlotsInto(parent, src) {
   parent.append(renderPlotPanel(pd, "Bode"));
 }
 
+function renderDesignStrip(parent, src) {
+  const goals = formsInGroup("design");
+  if (!goals.length) return;
+  parent.append(sectionLabel("Design · pick a goal, reuse the G above"));
+  const wrap = el("div", { style: `background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:9px;` });
+  const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
+  const body = el("div", {});
+  wrap.append(chips, body);
+  for (const f of goals) {
+    const chip = el("button", { style:
+      `background:#172033;color:${TXT};border:1px solid #3b4a66;border-radius:8px;padding:6px 10px;font:600 12px 'Outfit';cursor:pointer;` },
+      f.title.replace(/^P\d+ — |^Analysis — /, ""));
+    chip.onclick = () => showGoal(f, body, src);
+    chips.append(chip);
+  }
+  parent.append(wrap);
+}
+
+function showGoal(form, body, src) {
+  body.innerHTML = "";
+  const inputs = new Map();
+  for (const fld of form.fields) {
+    if (fld.name === "G") continue; // injected from the dashboard
+    const row = el("div", { style: "display:flex;flex-direction:column;gap:3px;margin-top:6px;" });
+    row.append(el("label", { style: `color:${SUB};font:500 12px 'Inter';` }, fld.label));
+    let input;
+    if (fld.kind === "dropdown") {
+      input = el("select", { style: `background:rgba(30,41,59,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:7px;` });
+      (fld.options || []).forEach((o) => input.append(el("option", { value: o }, o)));
+      if (fld.default) input.value = fld.default;
+    } else {
+      input = el("input", { type: "text", value: fld.default || "", placeholder: fld.placeholder || "", style: `background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:13px 'JetBrains Mono';` });
+    }
+    inputs.set(fld.name, input);
+    row.append(input); body.append(row);
+  }
+  const go = el("button", { style: "margin-top:9px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:9px 14px;font:600 12px 'Outfit';cursor:pointer;" }, "Solve");
+  const out = el("div", { style: `margin-top:9px;color:${TXT};` });
+  go.onclick = () => {
+    const inp = { G: src };
+    for (const [k, el2] of inputs) inp[k] = el2.value;
+    const res = runSolver(form.fn, inp, "", null);
+    out.innerHTML = "";
+    if (!res.ok) { out.innerHTML = `<span style="color:#f59e0b">${res.note || "could not solve"}</span>`; return; }
+    if (res.latex) katex(out, res.latex, false);
+    if (res.summary) {
+      const t = el("div", { style: "display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font:12px 'JetBrains Mono';margin-top:6px;" });
+      res.summary.forEach(([k, v]) => { t.append(el("div", { style: `color:${SUB};` }, k), el("div", { style: `color:${TXT};` }, String(v))); });
+      out.append(t);
+    }
+  };
+  body.append(go, out);
+}
+
 // stub filled by Task 7 — keep it so the module loads
 function renderSymbolicBoard() {}
 
