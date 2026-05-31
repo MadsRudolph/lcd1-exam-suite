@@ -48,3 +48,28 @@ test("nyquistData caps the magnitude for an integrator", () => {
     assert.ok(Math.hypot(re[i], im[i]) <= 1000 + 1e-6, "magnitude capped");
   }
 });
+
+// append to spike/test/plotdata.test.js
+import { stepData } from "../solvers/plotdata.js";
+
+test("stepData final value equals the DC gain for a stable TF", () => {
+  const tf = parseTf("5/((s+1)*(s+2))"); // DC gain = 5/2 = 2.5
+  const { t, y } = stepData(tf, { tMax: 12, n: 600 });
+  assert.equal(t.length, y.length);
+  assert.ok(Math.abs(y[y.length - 1] - 2.5) < 0.02, `final ${y[y.length - 1]} ~ 2.5`);
+});
+
+test("stepData overshoot of a known 2nd-order matches Mp", () => {
+  // zeta=0.3, wn=5 -> Mp = exp(-pi*zeta/sqrt(1-zeta^2)) ~ 0.372, final value 1
+  const tf = parseTf("25/(s**2+3*s+25)");
+  const { y } = stepData(tf, { tMax: 4, n: 1000 });
+  const peak = Math.max(...y);
+  assert.ok(Math.abs(peak - 1.372) < 0.03, `peak ${peak} ~ 1.372`);
+});
+
+test("stepData handles a pure first-order lag", () => {
+  const tf = parseTf("1/(s+1)"); // y(t) = 1 - e^-t, y(1) ~ 0.632
+  const { t, y } = stepData(tf, { tMax: 6, n: 600 });
+  const i1 = t.findIndex((tt) => tt >= 1);
+  assert.ok(Math.abs(y[i1] - 0.632) < 0.02, `y(1) ${y[i1]} ~ 0.632`);
+});

@@ -64,3 +64,69 @@ export function nyquistData(tf, opts = {}) {
   }
   return { re, im, omega };
 }
+
+// append to spike/solvers/plotdata.js
+import { dominantSettling } from "./analysis.js";
+
+function linspace(a, b, n) {
+  const out = [];
+  const step = (b - a) / (n - 1);
+  for (let i = 0; i < n; i++) out.push(a + i * step);
+  return out;
+}
+
+export function stepData(tf, opts = {}) {
+  const d0 = tf.den[0];
+  const a = tf.den.map((c) => c / d0);            // monic den: [1, a1, ..., an]
+  const num = tf.num.map((c) => c / d0);
+  const order = a.length - 1;
+
+  const n = opts.n || 600;
+  let tMax = opts.tMax;
+  if (tMax == null) {
+    try { tMax = dominantSettling(tf).t_s_2pct * 1.3; } catch { tMax = 10; }
+    tMax = Math.min(Math.max(tMax, 0.5), 200);
+  }
+  const t = linspace(0, tMax, n);
+
+  if (order === 0) {                              // pure gain
+    const g = num[num.length - 1] || 0;
+    return { t, y: t.map(() => g) };
+  }
+
+  const b = new Array(order + 1).fill(0);         // num padded to [b0, b1, ..., bn]
+  for (let i = 0; i < num.length; i++) b[order - (num.length - 1) + i] = num[i];
+  const D = b[0];                                 // direct feedthrough (0 if strictly proper)
+  const beta = [];                                // beta_k = b_k - D*a_k, k=1..order
+  for (let k = 1; k <= order; k++) beta[k] = b[k] - D * a[k];
+
+  const deriv = (x, u) => {                        // controllable canonical form
+    const dx = new Array(order);
+    for (let i = 0; i < order - 1; i++) dx[i] = x[i + 1];
+    let s = 0;
+    for (let k = 1; k <= order; k++) s += a[k] * x[order - k];
+    dx[order - 1] = -s + u;
+    return dx;
+  };
+  const output = (x, u) => {
+    let yk = D * u;
+    for (let k = 1; k <= order; k++) yk += beta[k] * x[order - k];
+    return yk;
+  };
+
+  let x = new Array(order).fill(0);
+  const dt = tMax / (n - 1);
+  const u = 1;                                    // unit step
+  const y = [output(x, u)];
+  for (let i = 1; i < n; i++) {
+    const k1 = deriv(x, u);
+    const k2 = deriv(x.map((xi, j) => xi + (dt / 2) * k1[j]), u);
+    const k3 = deriv(x.map((xi, j) => xi + (dt / 2) * k2[j]), u);
+    const k4 = deriv(x.map((xi, j) => xi + dt * k3[j]), u);
+    x = x.map((xi, j) => xi + (dt / 6) * (k1[j] + 2 * k2[j] + 2 * k3[j] + k4[j]));
+    let yk = output(x, u);
+    if (!Number.isFinite(yk)) yk = y[i - 1]; // guard against blow-up overflow
+    y.push(yk);
+  }
+  return { t, y };
+}
