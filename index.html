@@ -144,7 +144,7 @@
         </aside>
 
         <!-- CENTER INTERACTIVE CANVAS -->
-        <main class="canvas-container">
+        <main class="canvas-container" style="position:relative;">
             <header class="canvas-header">
                 <div class="canvas-header-title">SVG INTERACTIVE BOARD</div>
                 
@@ -165,6 +165,12 @@
                 <!-- Background Blueprint Watermark -->
                 <image id="canvas-blueprint" x="0" y="0" width="1200" height="600" opacity="0.25" style="display: none; pointer-events: none;"></image>
             </svg>
+            <div id="canvas-zoom-controls" style="position:absolute; right:14px; bottom:14px; display:flex; gap:6px; z-index:5;">
+              <button class="btn-action" id="zoom-out-btn" title="Zoom out" style="width:30px; padding:4px 0;">&minus;</button>
+              <button class="btn-action" id="zoom-in-btn" title="Zoom in" style="width:30px; padding:4px 0;">+</button>
+              <button class="btn-action" id="zoom-reset-btn" title="Reset to 100%" style="padding:4px 10px;">Reset</button>
+              <button class="btn-action" id="zoom-fit-btn" title="Fit diagram" style="padding:4px 10px;">Fit</button>
+            </div>
         </main>
 
         <!-- RESIZE HANDLE -->

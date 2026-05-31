@@ -249,6 +249,33 @@ export class BlockDiagramCanvas {
         this.render();
     }
 
+    zoomAtCenter(factor) {
+        this.ensureViewBox();
+        const rect = this.svg.getBoundingClientRect();
+        const baseW = rect.width || 800;
+        const center = { x: this.viewBox.x + this.viewBox.w / 2, y: this.viewBox.y + this.viewBox.h / 2 };
+        this.viewBox = zoomAroundPoint(this.viewBox, center, factor, { minW: baseW / 8, maxW: baseW * 10 });
+        this.render();
+    }
+    zoomIn() { this.zoomAtCenter(1 / 1.2); }
+    zoomOut() { this.zoomAtCenter(1.2); }
+    resetView() {
+        const r = this.svg.getBoundingClientRect();
+        this.viewBox = { x: 0, y: 0, w: r.width || 800, h: r.height || 600 };
+        this.render();
+    }
+    fitView() {
+        const box = fitBox(this.nodes, 80);
+        if (!box) { this.resetView(); return; }
+        const r = this.svg.getBoundingClientRect();
+        const aspect = (r.height || 600) / (r.width || 800);
+        let w = box.w, h = box.h;
+        if (h / w < aspect) h = w * aspect; else w = h / aspect;
+        const cx = box.x + box.w / 2, cy = box.y + box.h / 2;
+        this.viewBox = { x: cx - w / 2, y: cy - h / 2, w, h };
+        this.render();
+    }
+
     onMouseDown(e) {
         const coords = this.getMouseCoords(e);
         const target = e.target;
