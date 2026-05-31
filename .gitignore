@@ -21,3 +21,6 @@ Thumbs.db
 mock-exams/*.pdf
 mock-exams/*.aux
 mock-exams/*.out
+
+# Brainstorming visual-companion scratch
+.superpowers/
