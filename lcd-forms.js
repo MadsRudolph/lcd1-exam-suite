@@ -7,7 +7,7 @@
 export const FORMS = [
   // ---- P1 ----
   {
-    pattern: "P1", title: "P1 — ODE → TF", variant: "ODE → TF", fn: "solve_ode_to_tf",
+    pattern: "P1", title: "P1 — ODE → TF", variant: "ODE → TF", fn: "solve_ode_to_tf", group: "source",
     resultKind: "TF",
     fields: [
       { name: "y_coeffs", label: "y coeffs (highest-deg first, comma-sep)", kind: "str", placeholder: "5, 1, 0.5", tooltip: "Coefficients of y and its derivatives, e.g. 5,1,0.5 for 5y''+y'+0.5y." },
@@ -16,7 +16,7 @@ export const FORMS = [
     explanation: "ODE → transfer function G(s)=U(s)/Y(s). Highest derivative first.",
   },
   {
-    pattern: "P1", title: "P1 — State-space → TF", variant: "State-space → TF", fn: "solve_state_space_to_tf",
+    pattern: "P1", title: "P1 — State-space → TF", variant: "State-space → TF", fn: "solve_state_space_to_tf", group: "source",
     resultKind: "TF",
     fields: [
       { name: "A", label: "A", kind: "str", placeholder: "[[-1,0],[0,-1]]", tooltip: "State matrix A as nested lists." },
@@ -28,7 +28,7 @@ export const FORMS = [
   },
   // ---- P2 ----
   {
-    pattern: "P2", title: "P2 — Bode read-off", variant: "Compose G(s) from read-off", fn: "compose_tf_from_bode",
+    pattern: "P2", title: "P2 — Bode read-off", variant: "Compose G(s) from read-off", fn: "compose_tf_from_bode", group: "source",
     resultKind: "TF",
     fields: [
       { name: "dc_gain_dB", label: "DC gain (dB)", kind: "float", default: "0", placeholder: "6.02", tooltip: "DC gain in dB." },
@@ -38,7 +38,7 @@ export const FORMS = [
     explanation: "Reconstruct G(s) from Bode magnitude-slope corners and phase events.",
   },
   {
-    pattern: "P2", title: "Bode read-off → margins", variant: "corners/phase → type · order · GM · PM · ω_c · ω_π", fn: "bode_readoff",
+    pattern: "P2", title: "Bode read-off → margins", variant: "corners/phase → type · order · GM · PM · ω_c · ω_π", fn: "bode_readoff", group: "source",
     resultKind: "INFO",
     fields: [
       { name: "dc_gain_dB", label: "DC gain (dB) — low-frequency magnitude", kind: "float", default: "0", placeholder: "6.02", tooltip: "The magnitude of the open-loop Bode plot at low frequency, in dB." },
@@ -49,7 +49,7 @@ export const FORMS = [
   },
   // ---- P3 ----
   {
-    pattern: "P3", title: "P3 — Stable-K range", variant: "Stable-K range (handles RHP)", fn: "solve_stable_K_range",
+    pattern: "P3", title: "P3 — Stable-K range", variant: "Stable-K range (handles RHP)", fn: "solve_stable_K_range", group: "design",
     resultKind: "RANGE",
     fields: [{ name: "G", label: "G(s)", kind: "tf", placeholder: "1 / (s+1)**3", tooltip: "Open-loop plant G(s)." }],
     explanation: "Range of proportional gain K for closed-loop stability (Routh for RHP plants).",
@@ -62,7 +62,7 @@ export const FORMS = [
   },
   // ---- P4 ----
   {
-    pattern: "P4", title: "P4 — 2nd-order specs", variant: "Mp ↔ ζ ↔ ω_n/t_p/t_s", fn: "solve_2nd_order",
+    pattern: "P4", title: "P4 — 2nd-order specs", variant: "Mp ↔ ζ ↔ ω_n/t_p/t_s", fn: "solve_2nd_order", group: "calc",
     resultKind: "DICT", dictMatchKeys: ["zeta", "Mp", "Mp_pct", "omega_n", "omega_d", "t_p", "t_s_2pct", "t_s_5pct", "t_r", "omega_BW"],
     fields: [
       { name: "Mp", label: "Mp (fraction)", kind: "str", placeholder: "0.17", tooltip: "Overshoot as a fraction (0.17 = 17%). Blank if unknown." },
@@ -74,7 +74,7 @@ export const FORMS = [
     explanation: "Fill any subset (typically ζ or Mp plus one time/frequency metric); the rest are computed.",
   },
   {
-    pattern: "P4", title: "P4 — Closed-loop + 1 spec", variant: "Closed-loop TF + 1 known metric", fn: "solve_closed_loop_2nd_order",
+    pattern: "P4", title: "P4 — Closed-loop + 1 spec", variant: "Closed-loop TF + 1 known metric", fn: "solve_closed_loop_2nd_order", group: "calc",
     resultKind: "DICT", dictMatchKeys: ["K", "zeta", "Mp", "Mp_pct", "omega_n", "omega_d", "t_p", "t_s_2pct", "t_s_5pct", "t_r", "omega_BW"],
     fields: [
       { name: "closed_loop_str", label: "Closed-loop TF in s, K", kind: "str", default: "K / (s**2 + 2*s + K)", placeholder: "K / (s**2 + 5*s + K)", tooltip: "The CLOSED-LOOP TF (note the trailing +K from unity feedback), not the forward plant." },
@@ -84,7 +84,7 @@ export const FORMS = [
     explanation: "Solve for K from one known metric and fill the full second-order table.",
   },
   {
-    pattern: "P4", title: "P4 — K for transient spec", variant: "K boundary for Mp / ζ spec", fn: "solve_K_for_spec",
+    pattern: "P4", title: "P4 — K for transient spec", variant: "K boundary for Mp / ζ spec", fn: "solve_K_for_spec", group: "design",
     resultKind: "NUMBER",
     fields: [
       { name: "G_str", label: "G(s, K)", kind: "str", default: "K/(s*(s+5))", placeholder: "K/(s*(s+5))", tooltip: "Parametric loop-gain TF containing K." },
@@ -94,7 +94,7 @@ export const FORMS = [
   },
   // ---- P5 ----
   {
-    pattern: "P5", title: "P5 — K_P from ess", variant: "K_P from step ess (type-0)", fn: "solve_KP_from_ess",
+    pattern: "P5", title: "P5 — K_P from ess", variant: "K_P from step ess (type-0)", fn: "solve_KP_from_ess", group: "calc",
     resultKind: "NUMBER",
     fields: [
       { name: "G0", label: "G(0)", kind: "float", placeholder: "0.4  (or -7.96 if dB)", tooltip: "Plant DC gain read off the Bode plot." },
@@ -111,7 +111,7 @@ export const FORMS = [
   },
   // ---- P6 ----
   {
-    pattern: "P6", title: "P6 — PI-Lead (phase budget)", variant: "α / Ni / KP / β / design", fn: "solve_pi_lead",
+    pattern: "P6", title: "P6 — PI-Lead (phase budget)", variant: "α / Ni / KP / β / design", fn: "solve_pi_lead", group: "design",
     resultKind: "DICT", dictMatchKeys: ["alpha", "M_D", "M_D_dB", "N_i", "K_P", "beta"],
     fields: [
       { name: "unknown", label: "solve for", kind: "dropdown", default: "alpha", options: ["alpha", "Ni", "KP", "beta", "design"], tooltip: "α/Ni/KP are PI-Lead modes; β is the Lag part; design = full design (φ_G computed from G(jω_c))." },
@@ -125,7 +125,7 @@ export const FORMS = [
     explanation: "Phase-budget design: −180 + γ_M = φ_G + φ_Lead + φ_PI. φ_G usually comes off the Bode phase plot.",
   },
   {
-    pattern: "P6", title: "P6 — P for PM", variant: "K_P for target PM", fn: "solve_P_for_PM",
+    pattern: "P6", title: "P6 — P for PM", variant: "K_P for target PM", fn: "solve_P_for_PM", group: "design",
     resultKind: "DICT", dictMatchKeys: ["K_P", "omega_c"],
     fields: [
       { name: "G", label: "G(s)", kind: "tf", placeholder: "1 / (s*(s+2.1))", tooltip: "Open-loop plant G(s)." },
@@ -135,7 +135,7 @@ export const FORMS = [
   },
   // ---- P7 ----
   {
-    pattern: "P7", title: "P7 — Feedforward form", variant: "Pick proper-fast F_d", fn: "pick_feedforward_form",
+    pattern: "P7", title: "P7 — Feedforward form", variant: "Pick proper-fast F_d", fn: "pick_feedforward_form", group: "calc",
     resultKind: "PICK",
     fields: [
       { name: "n_lags", label: "n (first-order lags)", kind: "int", default: "3", placeholder: "3", tooltip: "Number of plant lags." },
@@ -189,7 +189,7 @@ export const FORMS = [
     explanation: "Steady-state error from a unit-step disturbance: e_dss = −lim_{s→0} Gd/(1+L). Returns 0 when an integrator in the loop rejects the disturbance.",
   },
   {
-    pattern: "Analysis", title: "Solve for a symbol", variant: "a/(1+a)=2/3 → a=2", fn: "solve_symbol",
+    pattern: "Analysis", title: "Solve for a symbol", variant: "a/(1+a)=2/3 → a=2", fn: "solve_symbol", group: "calc",
     resultKind: "INFO",
     fields: [
       { name: "equation", label: "Equation (one '=', unknown anywhere)", kind: "str", placeholder: "1/(1+0.4*K1) = 0.4", tooltip: "A single-unknown static equation in the symbol named below — e.g. a/(1+a)=2/3, or 1/(1+0.4*K1)=0.4. Linear unknowns solve exactly; numeric quadratics return both roots." },
@@ -198,7 +198,7 @@ export const FORMS = [
     explanation: "Solves a single-unknown equation symbolically (an ess or gain relation read off the loop). Linear unknowns give an exact closed form; numeric quadratics give both roots.",
   },
   {
-    pattern: "Analysis", title: "Linearize → TF", variant: "ẋ=f(x,u) at an operating point", fn: "linearize_tf",
+    pattern: "Analysis", title: "Linearize → TF", variant: "ẋ=f(x,u) at an operating point", fn: "linearize_tf", group: "calc",
     resultKind: "INFO",
     fields: [
       { name: "f", label: "f(x,u) in ẋ = f(x,u)", kind: "str", placeholder: "c*b*u - a*x", tooltip: "Right-hand side of a first-order nonlinear state equation — polynomial/rational in the state and input symbols and any literal parameters." },
@@ -223,7 +223,7 @@ export const FORMS = [
     explanation: "Draws the unit step response, Bode diagram, Nyquist plot and pole-zero map of the transfer function, annotated with the key values.",
   },
   {
-    pattern: "P7", title: "P7 — Nested ess", variant: "K from nested-loop ess", fn: "solve_nested_ess",
+    pattern: "P7", title: "P7 — Nested ess", variant: "K from nested-loop ess", fn: "solve_nested_ess", group: "calc",
     resultKind: "NUMBER",
     fields: [
       { name: "architecture", label: "architecture", kind: "dropdown", default: "two_KP_same", options: ["two_KP_same", "nested_K1_K2"], tooltip: "Nested-loop architecture." },
@@ -238,3 +238,5 @@ export const FORMS = [
 ];
 
 export const formByFn = (fn) => FORMS.find((f) => f.fn === fn) || null;
+
+export const formsInGroup = (g) => FORMS.filter((f) => f.group === g);
