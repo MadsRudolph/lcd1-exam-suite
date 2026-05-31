@@ -5,7 +5,7 @@
  */
 
 import { BlockDiagramCanvas } from './canvas.js';
-import { solveBlockDiagram } from './solver.js';
+import { solveBlockDiagram, transferFunction, collectEndpoints, loopGain } from './solver.js';
 import { TransferFunction } from './math-engine.js';
 import { analyzeImageTopology } from './vision-analyzer.js';
 import './lcd-solver-ui.js';
@@ -30,11 +30,44 @@ document.addEventListener('DOMContentLoaded', () => {
     
     const tfOutput = document.getElementById('tf-output');
     const stepsOutput = document.getElementById('steps-output');
-    
+    const sourceSelect = document.getElementById('source-select');
+    const sinkSelect = document.getElementById('sink-select');
+
+    // Label shown for the current result, e.g. "Y/R", "Y/D", or "L(s)".
+    let currentTfLabel = 'Y/R';
+
+    // Build the KaTeX left-hand side for a label like "Y/R" or "L(s)".
+    function lhsLatex(label) {
+        if (label === 'L(s)') return 'L(s)';
+        const [num, den] = label.split('/');
+        return `\\frac{${num}(s)}{${den || ''}(s)}`;
+    }
+
+    function fillSelect(select, items) {
+        const prev = select.value;
+        select.innerHTML = '';
+        items.forEach(it => {
+            const opt = document.createElement('option');
+            opt.value = it.id;
+            opt.textContent = it.label;
+            select.appendChild(opt);
+        });
+        if (items.some(it => it.id === prev)) {
+            select.value = prev; // preserve the user's choice across refreshes
+        }
+    }
+
+    function refreshEndpointDropdowns() {
+        const { sources, sinks } = collectEndpoints(canvas.nodes);
+        fillSelect(sourceSelect, sources);
+        fillSelect(sinkSelect, sinks);
+    }
+
     // Initialize Canvas
     const canvas = new BlockDiagramCanvas(svgEl, () => {
         handleStateChange();
         updateDiagramStats();
+        refreshEndpointDropdowns();
     });
 
     document.getElementById('zoom-in-btn').addEventListener('click', () => canvas.zoomIn());
@@ -123,7 +156,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (copyTextBtn) {
         copyTextBtn.addEventListener('click', () => {
             if (!lastSolutionResult) return;
-            const formulaStr = `Y(s)/R(s) = ${lastSolutionResult.finalTransferFunction.toFormulaString()}`;
+            const formulaStr = `${currentTfLabel} = ${lastSolutionResult.finalTransferFunction.toFormulaString()}`;
             navigator.clipboard.writeText(formulaStr).then(() => {
                 showCopySuccess(copyTextBtn, "Copied Text!");
             });
@@ -133,7 +166,7 @@ document.addEventListener('DOMContentLoaded', () => {
     if (copyLatexBtn) {
         copyLatexBtn.addEventListener('click', () => {
             if (!lastSolutionResult) return;
-            const latexStr = `\\frac{Y(s)}{R(s)} = ${lastSolutionResult.finalTransferFunction.toKaTeX()}`;
+            const latexStr = `${lhsLatex(currentTfLabel)} = ${lastSolutionResult.finalTransferFunction.toKaTeX()}`;
             navigator.clipboard.writeText(latexStr).then(() => {
                 showCopySuccess(copyLatexBtn, "Copied LaTeX!");
             });
@@ -153,9 +186,20 @@ document.addEventListener('DOMContentLoaded', () => {
     // Solver logic trigger
     function triggerSolve() {
         try {
-            const result = solveBlockDiagram(canvas.nodes, canvas.connections);
+            const sourceId = sourceSelect.value;
+            const sinkId = sinkSelect.value;
+            let result;
+            if (sourceId && sinkId) {
+                result = transferFunction(canvas.nodes, canvas.connections, sourceId, sinkId);
+                const srcLabel = sourceSelect.selectedOptions[0]?.textContent || 'R';
+                const sinkLabel = sinkSelect.selectedOptions[0]?.textContent || 'Y';
+                currentTfLabel = `${sinkLabel}/${srcLabel}`;
+            } else {
+                result = solveBlockDiagram(canvas.nodes, canvas.connections);
+                currentTfLabel = 'Y/R';
+            }
             lastSolutionResult = result;
-            renderMathSolution(result);
+            renderMathSolution(result, currentTfLabel);
             if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
             if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
         } catch (e) {
@@ -164,7 +208,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.LCDBridge) window.LCDBridge.onSolveFailed();
             if (copyActionsContainer) copyActionsContainer.style.display = 'none';
             tfOutput.innerHTML = `<span style="color: var(--accent-red); font-size: 13px;">Error: ${e.message}</span>`;
-            stepsOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic;">Could not solve the system of equations. Make sure your nodes are fully connected from R to Y.</div>`;
+            stepsOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic;">Could not solve the system of equations. Make sure your nodes are fully connected from the source to the sink.</div>`;
         }
     }
 
@@ -201,10 +245,10 @@ document.addEventListener('DOMContentLoaded', () => {
         if (loopsEl) loopsEl.textContent = loopsCount;
     }
 
-    function renderMathSolution(result) {
+    function renderMathSolution(result, label = 'Y/R') {
         if (!window.katex) {
             // Safe fallback if CDN fails
-            tfOutput.textContent = `Y(s)/R(s) = ${result.finalTransferFunction.toFormulaString()}`;
+            tfOutput.textContent = `${label} = ${result.finalTransferFunction.toFormulaString()}`;
             stepsOutput.innerHTML = result.initialEquations.map((eq, idx) => `
                 <div class="step-item initial">
                     <div class="step-title">Relation ${idx + 1}</div>
@@ -220,7 +264,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }
 
         // Render Final Transfer Function
-        const latexStr = `\\frac{Y(s)}{R(s)} = ${result.finalTransferFunction.toKaTeX()}`;
+        const latexStr = `${lhsLatex(label)} = ${result.finalTransferFunction.toKaTeX()}`;
         tfOutput.innerHTML = '';
         const tfContainer = document.createElement('div');
         katex.render(latexStr, tfContainer, { displayMode: true, throwOnError: false });

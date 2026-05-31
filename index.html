@@ -167,8 +167,13 @@
                     <button class="btn-action red" id="clear-blueprint-btn" style="padding: 2px 8px; font-size: 10px; line-height: 1.2;">Clear Blueprint</button>
                 </div>
 
-                <div class="canvas-actions">
+                <div class="canvas-actions" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+                    <label style="font-size:11px; color:var(--text-secondary);">Source</label>
+                    <select id="source-select" style="background:#0f172a; color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:5px 8px; font-size:12px;"></select>
+                    <label style="font-size:11px; color:var(--text-secondary);">Sink</label>
+                    <select id="sink-select" style="background:#0f172a; color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:5px 8px; font-size:12px;"></select>
                     <button class="btn-action" id="solve-btn">Solve Loop</button>
+                    <button class="btn-action" id="break-loop-btn">Break Loop</button>
                     <button class="btn-action red" id="clear-btn">Clear Canvas</button>
                 </div>
             </header>
