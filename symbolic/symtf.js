@@ -33,6 +33,11 @@ export class SymTF {
     sub(o) { return new SymTF(pSub(pMul(this.num, o.den), pMul(o.num, this.den)), pMul(this.den, o.den)); }
     mul(o) { return new SymTF(pMul(this.num, o.num), pMul(this.den, o.den)); }
     neg() { return new SymTF(pNeg(this.num), this.den); }
+    div(o) {
+        if (o.isZero()) throw new Error("SymTF: divide by zero");
+        // (n1/d1) / (n2/d2) = (n1*d2)/(d1*n2)
+        return new SymTF(pMul(this.num, o.den), pMul(this.den, o.num));
+    }
 
     simplify() {
         // 1. lift s-coefficients into the field Q(params)
