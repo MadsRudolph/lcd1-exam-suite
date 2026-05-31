@@ -29,3 +29,20 @@ test("unit leading coefficient on s is omitted; constant shown", () => {
   const r = renderSymTF(new SymTF([c(2), c(3), c(1)], [c(1)])); // s^2 + 3s + 2
   assert.equal(r.toFormulaString(), "s^2 + 3s + 2");
 });
+
+test("negative multi-term coefficient keeps its internal signs inside parens", () => {
+  const negA1 = a.neg().add(c(1));                       // -a + 1
+  const r = renderSymTF(new SymTF([K], [c(1), negA1]));  // K / ((-a+1)s + 1)
+  assert.equal(r.toFormulaString(), "K / ((-a + 1)s + 1)");
+  assert.equal(r.toKaTeX(), "\\frac{K}{(-a + 1)s + 1}");
+});
+
+test("negative single coefficients render -s and -3", () => {
+  assert.equal(renderSymTF(new SymTF([MPoly.ZERO, c(-1)], [c(1)])).toFormulaString(), "-s");
+  assert.equal(renderSymTF(new SymTF([c(-3)], [c(1)])).toFormulaString(), "-3");
+});
+
+test("third polynomial also renders in KaTeX", () => {
+  const r = renderSymTF(new SymTF([c(2), c(3), c(1)], [c(1)])); // s^2 + 3s + 2
+  assert.equal(r.toKaTeX(), "s^2 + 3s + 2");
+});

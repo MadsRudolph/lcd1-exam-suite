@@ -1,27 +1,28 @@
 // Render a polynomial-in-s (array of MPoly, index = power) collected by descending power.
-function renderPoly(coeffs, mode) {
-    // mode: "text" | "katex"
+function renderPoly(coeffs) {
     const parts = [];
     for (let p = coeffs.length - 1; p >= 0; p--) {
         const m = coeffs[p];
         if (m.isZero()) continue;
         const isSum = m.terms.size > 1;
-        let coeffStr = m.toString();                  // collected, e.g. "a + 1", "2K", "1", "-3"
+        const coeffStr = m.toString();                 // collected, may start with "-", may be multi-term
         const sVar = p === 0 ? "" : (p === 1 ? "s" : `s^${p}`);
 
-        // sign extraction for joining
-        let neg = coeffStr.startsWith("-");
-        let body = neg ? coeffStr.slice(1) : coeffStr;
-
-        let termStr;
-        if (p === 0) {
-            termStr = body;                            // constant term shows its coefficient
-        } else if (body === "1") {
-            termStr = sVar;                            // 1*s^k -> s^k
-        } else if (isSum) {
-            termStr = `(${body})${sVar}`;              // (a+1)s
+        let neg, termStr;
+        if (p > 0 && isSum) {
+            // multi-term coefficient on s^k: parenthesise WITH its internal signs; don't hoist.
+            neg = false;
+            termStr = `(${coeffStr})${sVar}`;
+        } else if (p > 0 && coeffStr === "1") {
+            neg = false; termStr = sVar;               // 1*s^k -> s^k
+        } else if (p > 0 && coeffStr === "-1") {
+            neg = true;  termStr = sVar;               // -1*s^k -> -s^k
         } else {
-            termStr = `${body}${sVar}`;                // 2Ks, 3s
+            // constant term (any), or single-term non-unit coefficient on s^k:
+            // safe to hoist a leading '-' as the join sign (no parentheses involved).
+            neg = coeffStr.startsWith("-");
+            const body = neg ? coeffStr.slice(1) : coeffStr;
+            termStr = `${body}${sVar}`;
         }
         parts.push({ neg, termStr });
     }
@@ -35,9 +36,9 @@ function renderPoly(coeffs, mode) {
 }
 
 export function renderSymTF(tf) {
-    const numText = renderPoly(tf.num, "text");
+    const numText = renderPoly(tf.num);
     const denIsOne = tf.den.length === 1 && tf.den[0].isConstant() && tf.den[0].constantValue().isOne();
-    const denText = renderPoly(tf.den, "text");
+    const denText = renderPoly(tf.den);
     return {
         toFormulaString() {
             return denIsOne ? numText : `${numText} / (${denText})`;
