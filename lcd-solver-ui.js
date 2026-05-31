@@ -158,8 +158,36 @@ function showGoal(form, body, src) {
   body.append(go, out);
 }
 
-// stub filled by Task 7 — keep it so the module loads
-function renderSymbolicBoard() {}
+function renderSymbolicBoard(src) {
+  const a = analyzeSymbolic(src);
+  if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span>`; return; }
+  state.echo.innerHTML = `<span style="color:#6ee7b7">symbolic input — showing closed-loop &amp; steady-state in symbols</span>`;
+  const grid = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
+  grid.append(
+    card("closed-loop T = L/(1+L)", a.closedLoop || "—"),
+    card("type / order", `${a.type ?? "—"} / ${a.order ?? "—"}`),
+    card("K₀ = lim sᴺ·L", a.K0 || "—"),
+    card("ess step / ramp", `${a.essStep ?? "—"} / ${a.essRamp ?? "—"}`),
+  );
+  state.board.append(sectionLabel("Symbolic read-outs"), grid);
+
+  state.board.append(sectionLabel("Check the exam's options · paste one per line"));
+  const ta = el("textarea", { rows: "4", placeholder: "K/(s^2+a*s+K)\n...", style:
+    `width:100%;background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:9px;font:12px 'JetBrains Mono';` });
+  const btn = el("button", { style: "margin-top:7px;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:8px;padding:8px 12px;font:600 12px 'Outfit';cursor:pointer;" }, "Check which option is equal");
+  const out = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:5px;" });
+  btn.onclick = () => {
+    const res = runSolver("symbolic_equiv", { ref: src }, ta.value.trim(), null);
+    out.innerHTML = "";
+    (res.options || []).forEach((o) => {
+      const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:7px;border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};background:${o.flag === "match" ? "rgba(16,185,129,0.08)" : "rgba(30,41,59,0.25)"};font:12px 'JetBrains Mono';` });
+      const v = el("span", {}); v.textContent = o.raw_text;
+      const tag = el("span", { style: `color:${o.flag === "match" ? "#10b981" : SUB};font:600 11px 'Outfit';` }); tag.textContent = o.flag === "match" ? "✓ equal" : o.flag === "unparseable" ? "? unparseable" : "not equal";
+      row.append(v, tag); out.append(row);
+    });
+  };
+  state.board.append(ta, btn, out);
+}
 
 function init() {
   // ---- floating switcher ----
