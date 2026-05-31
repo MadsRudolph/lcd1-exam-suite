@@ -1,0 +1,10 @@
+{
+  "name": "lcd1-jsport-spike",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "description": "Fidelity spike: port LCD1 P3/P4/P6 solvers to JS and assert parity against the Python 70-test oracle.",
+  "scripts": {
+    "test": "node --test"
+  }
+}
