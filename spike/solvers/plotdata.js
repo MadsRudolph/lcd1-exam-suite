@@ -75,11 +75,32 @@ function linspace(a, b, n) {
   return out;
 }
 
+// Remainder r of num/den with deg(r) < deg(den), so the realization sees a strictly proper numerator.
+function polyDivRemainder(num, den) {
+  const r = num.slice();
+  while (r.length >= den.length) {
+    const f = r[0] / den[0];
+    for (let i = 0; i < den.length; i++) r[i] -= f * den[i];
+    r.shift();
+  }
+  return r;
+}
+
 export function stepData(tf, opts = {}) {
   const d0 = tf.den[0];
   const a = tf.den.map((c) => c / d0);            // monic den: [1, a1, ..., an]
   const num = tf.num.map((c) => c / d0);
   const order = a.length - 1;
+
+  const improper = tf.num.length > tf.den.length;
+  const poles = tf.poles();
+  const rhp = poles.some((p) => p.re > 1e-9);
+  const jw = poles.some((p) => Math.abs(p.re) <= 1e-9);
+  const unbounded = improper || rhp || jw;
+  const reason = improper ? "improper: deg(num) > deg(den)"
+    : rhp ? "unstable: grows without bound"
+    : jw ? "no steady state (pole on the jω axis)"
+    : null;
 
   const n = opts.n != null ? opts.n : 600;
   let tMax = opts.tMax;
@@ -91,11 +112,12 @@ export function stepData(tf, opts = {}) {
 
   if (order === 0) {                              // pure gain
     const g = num[num.length - 1] || 0;
-    return { t, y: t.map(() => g) };
+    return { t, y: t.map(() => g), unbounded, reason };
   }
 
+  const numForSim = improper ? polyDivRemainder(num, a) : num;
   const b = new Array(order + 1).fill(0);         // num padded to [b0, b1, ..., bn]
-  for (let i = 0; i < num.length; i++) b[order - (num.length - 1) + i] = num[i];
+  for (let i = 0; i < numForSim.length; i++) b[order - (numForSim.length - 1) + i] = numForSim[i];
   const D = b[0];                                 // direct feedthrough (0 if strictly proper)
   const beta = [];                                // beta_k = b_k - D*a_k, k=1..order
   for (let k = 1; k <= order; k++) beta[k] = b[k] - D * a[k];
@@ -128,7 +150,7 @@ export function stepData(tf, opts = {}) {
     if (!Number.isFinite(yk)) yk = y[i - 1]; // guard against blow-up overflow
     y.push(yk);
   }
-  return { t, y };
+  return { t, y, unbounded, reason };
 }
 
 export function poleZeroData(tf) {

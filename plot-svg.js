@@ -10,6 +10,8 @@ export function escapeXml(s) {
 
 const COL = { axis: "#64748b", grid: "rgba(148,163,184,0.18)", text: "#94a3b8", fg: "#e2e8f0" };
 
+let _clipSeq = 0;
+
 /** Build the value->pixel scale for one axis. log = base-10 log scale. */
 function makeScale(values, lo, hi, log) {
   const v = (x) => (log ? Math.log10(x) : x);
@@ -38,12 +40,16 @@ export function linePlot(opts) {
   const allX = opts.series.flatMap((s) => s.x).concat((opts.vlines || []).map((v) => v.x));
   const allY = opts.series.flatMap((s) => s.y).concat((opts.hlines || []).map((h) => h.y));
   const sx = makeScale(allX, pl, pr, log);
-  const sy = makeScale(allY, pb, pt, false);
+  const sy = opts.yClip
+    ? { to: (y) => (y - opts.yClip[0]) / (opts.yClip[1] - opts.yClip[0]) * (pt - pb) + pb, min: opts.yClip[0], max: opts.yClip[1] }
+    : makeScale(allY, pb, pt, false);
+  const clipId = "pclip" + (++_clipSeq);
   const px = (x) => sx.to(x);
   const py = (y) => sy.to(y);
 
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Inter, sans-serif">`];
   parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="none"/>`);
+  parts.push(`<clipPath id="${clipId}"><rect x="${pl}" y="${pt}" width="${pr - pl}" height="${pb - pt}"/></clipPath>`);
   if (opts.title) parts.push(`<text x="${W / 2}" y="16" fill="${COL.fg}" font-size="12" text-anchor="middle">${escapeXml(opts.title)}</text>`);
 
   for (let i = 0; i <= 5; i++) {
@@ -72,7 +78,7 @@ export function linePlot(opts) {
     }
     const stroke = escapeXml(s.color || "#60a5fa");
     const dash = s.dash ? ` stroke-dasharray="${escapeXml(s.dash)}"` : "";
-    parts.push(`<polyline fill="none" stroke="${stroke}" stroke-width="1.6"${dash} points="${pts.join(" ")}"/>`);
+    parts.push(`<polyline fill="none" stroke="${stroke}" stroke-width="1.6"${dash} clip-path="url(#${clipId})" points="${pts.join(" ")}"/>`);
   }
 
   for (const mk of opts.markers || []) {
@@ -138,6 +144,17 @@ export function nyquistPlot(data, ann = {}) {
 }
 
 export function stepPlot(data, ann = {}) {
+  const early = data.y.slice(0, Math.max(2, Math.ceil(data.y.length * 0.3))).filter(Number.isFinite);
+  const fin = ann.finalValue;
+  const yClip = data.unbounded && early.length
+    ? (() => {
+        const lo = Math.min(0, ...early);
+        const hi = Math.max(...early, fin != null ? fin * 1.5 : 1);
+        const pad = (hi - lo) * 0.1 || 1;
+        return [lo - pad, hi + pad];
+      })()
+    : undefined;
+
   const markers = [];
   if (ann.peakTime != null && ann.finalValue != null && ann.overshootPct != null) {
     markers.push({ x: ann.peakTime, y: ann.finalValue * (1 + ann.overshootPct / 100), label: `Mp ${fmt(ann.overshootPct)}%` });
@@ -149,7 +166,9 @@ export function stepPlot(data, ann = {}) {
     hlines: ann.finalValue != null ? [{ y: ann.finalValue, color: "#64748b" }] : [],
     vlines: ann.settling2pct != null ? [{ x: ann.settling2pct, color: "#a78bfa" }] : [],
     markers,
+    yClip,
     readout: [
+      data.unbounded ? `⚠ ${data.reason}` : null,
       ann.overshootPct != null ? `overshoot ${fmt(ann.overshootPct)}%` : null,
       ann.peakTime != null ? `t_p ${fmt(ann.peakTime)} s` : null,
       ann.settling2pct != null ? `t_s ${fmt(ann.settling2pct)} s` : null,

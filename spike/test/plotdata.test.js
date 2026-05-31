@@ -117,3 +117,31 @@ test("step final value equals DC gain for the Q12 closed loop", () => {
   const pd = buildPlotData(tf);
   assert.ok(Math.abs(pd.step.y[pd.step.y.length - 1] - 1) < 0.02);
 });
+
+test("stepData flags an unstable TF as unbounded and does not corrupt", () => {
+  const tf = parseTf("1/(s-1)"); // RHP pole
+  const r = stepData(tf, { tMax: 5, n: 400 });
+  assert.equal(r.unbounded, true);
+  assert.ok(/unstable/i.test(r.reason), `reason mentions unstable: ${r.reason}`);
+  assert.ok(r.y.every(Number.isFinite), "no NaN/Infinity in y");
+});
+
+test("stepData handles an improper TF without index corruption", () => {
+  const tf = parseTf("(s**2+1)/(s+1)"); // improper: deg num 2 > deg den 1
+  const r = stepData(tf, { tMax: 5, n: 300 });
+  assert.equal(r.unbounded, true);
+  assert.ok(/improper/i.test(r.reason), `reason mentions improper: ${r.reason}`);
+  assert.ok(r.y.every(Number.isFinite), "no NaN/Infinity in y");
+});
+
+test("stepData marks an integrator as having no steady state", () => {
+  const tf = parseTf("1/(s*(s+1))");
+  const r = stepData(tf, { tMax: 8, n: 300 });
+  assert.equal(r.unbounded, true);
+});
+
+test("a stable TF is not flagged unbounded", () => {
+  const r = stepData(parseTf("5/((s+1)*(s+2))"), { tMax: 12, n: 300 });
+  assert.equal(r.unbounded, false);
+  assert.equal(r.reason, null);
+});

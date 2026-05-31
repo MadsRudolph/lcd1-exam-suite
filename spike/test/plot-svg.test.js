@@ -52,3 +52,8 @@ test("stepPlot and poleZeroPlot return svg without NaN", () => {
   assert.ok(s1.includes("<svg") && !/NaN/.test(s1));
   assert.ok(s2.includes("<svg") && !/NaN/.test(s2));
 });
+
+test("stepPlot shows a warning for an unbounded response", () => {
+  const svg = stepPlot({ t: [0,1,2], y: [0,5,40], unbounded: true, reason: "unstable: grows without bound" }, {});
+  assert.ok(/grows without bound/.test(svg), "warning rendered in readout");
+});
