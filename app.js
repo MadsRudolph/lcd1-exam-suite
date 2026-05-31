@@ -146,9 +146,11 @@ document.addEventListener('DOMContentLoaded', () => {
             lastSolutionResult = result;
             renderMathSolution(result);
             if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
+            if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
         } catch (e) {
             console.error(e);
             lastSolutionResult = null;
+            if (window.LCDBridge) window.LCDBridge.onSolveFailed();
             if (copyActionsContainer) copyActionsContainer.style.display = 'none';
             tfOutput.innerHTML = `<span style="color: var(--accent-red); font-size: 13px;">Error: ${e.message}</span>`;
             stepsOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic;">Could not solve the system of equations. Make sure your nodes are fully connected from R to Y.</div>`;

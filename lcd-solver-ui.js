@@ -3,8 +3,23 @@
 // and Smart Paste *pre-fills* the matching form (you review/correct, then solve).
 import { FORMS, formByFn } from "./lcd-forms.js";
 import { runSolver, routeQuestion } from "./lcd-engine.js";
+import { setHandoff, consumeHandoff } from "./lcd-handoff.js";
+import { solveBlockDiagram } from "./solver.js";
 
-const VERSION = "v1.1.1";
+const VERSION = "v1.2.0";
+
+// Solvers offered when a G(s) arrives from the Block Diagram, with the open/closed-loop hint.
+const BRIDGE_CHOICES = [
+  { fn: "solve_margins", label: "Margins (GM/PM)", note: "open-loop" },
+  { fn: "solve_stable_K_range", label: "Stable-K range", note: "open-loop" },
+  { fn: "solve_ess_table", label: "Steady-state error", note: "open-loop" },
+  { fn: "solve_P_for_PM", label: "P-for-PM", note: "open-loop" },
+  { fn: "solve_pi_lead", label: "PI-Lead design", note: "open-loop" },
+  { fn: "analyze_stability", label: "Closed-loop stability", note: "open-loop" },
+  { fn: "characterize", label: "Characterize (ζ, ωₙ, step)", note: "closed-loop" },
+  { fn: "bandwidth", label: "Bandwidth", note: "closed-loop" },
+  { fn: "dominant_settling", label: "Settling time", note: "closed-loop" },
+];
 
 const SAMPLE = `A P-controller with gain KP is applied and the loop is closed with unit feedback.
 If the steady state error ess = 0.555, the proportional gain KP is approximately:
@@ -140,7 +155,143 @@ function init() {
   pasteBtn.onclick = () => doPaste(ta.value, selectForm, optEl, matchSel, matchWrap);
   sampleBtn.onclick = () => { ta.value = SAMPLE; doPaste(SAMPLE, selectForm, optEl, matchSel, matchWrap); };
 
+  // ---- Block Diagram -> LCD1 bridge ----
+  state.setMode = setMode;
+  state.selectForm = selectForm;
+  const chooser = el("div", { id: "lcd-from-diagram", style:
+    `display:none;flex-direction:column;gap:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:12px;` });
+  left.prepend(chooser);
+  state.chooser = chooser;
+  state.setG = (fn, tf) => {
+    selectForm(fn);
+    const gField = state.fields.get("G");
+    if (gField) gField.value = tf;
+    solve();
+  };
+
+  window.LCDBridge = {
+    onSolved: (result, canvas) => mountUseButton(result, canvas),
+    onSolveFailed: () => { const b = document.getElementById("use-in-lcd-btn"); if (b) b.style.display = "none"; },
+  };
+
   selectForm(FORMS[0].fn);
+}
+
+// Place/refresh the "Use in LCD1 Solver" button in the Block Diagram reduce panel.
+function mountUseButton(result, canvas) {
+  const host = document.getElementById("copy-actions-container") || document.getElementById("tf-output");
+  if (!host) return;
+  let btn = document.getElementById("use-in-lcd-btn");
+  if (!btn) {
+    btn = el("button", { id: "use-in-lcd-btn", class: "btn-copy", title: "Send this G(s) to the LCD1 Solver",
+      style: "background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:6px;padding:4px 10px;font:600 11px 'Outfit';cursor:pointer;" },
+      "∑ Use in LCD1 Solver →");
+    host.appendChild(btn);
+  }
+  btn.style.display = "inline-block";
+  btn.onclick = () => doDiagramHandoff(result, canvas);
+}
+
+// Distinct alphabetic symbols (other than s) across the block values.
+function symbolsInCanvas(canvas) {
+  const set = new Set();
+  for (const n of canvas.nodes) {
+    if (n.type !== "block" || !n.value) continue;
+    for (const m of String(n.value).matchAll(/[A-Za-z_]\w*/g)) {
+      if (m[0] !== "s") set.add(m[0]);
+    }
+  }
+  return [...set];
+}
+
+function normalizeTf(s) {
+  return s.replace(/\^/g, "**");
+}
+
+function doDiagramHandoff(result, canvas) {
+  const symbols = symbolsInCanvas(canvas);
+  if (symbols.length === 0) {
+    enterFromDiagram(normalizeTf(result.finalTransferFunction.toFormulaString()));
+    return;
+  }
+  // Symbolic: ask for numeric values, substitute into block values, re-solve numerically.
+  showSubstitutionModal(symbols, (values) => {
+    const numericNodes = canvas.nodes.map((n) => {
+      if (n.type !== "block" || !n.value) return n;
+      let v = String(n.value);
+      for (const sym of symbols) v = v.replace(new RegExp(`\\b${sym}\\b`, "g"), `(${values[sym]})`);
+      return { ...n, value: v };
+    });
+    try {
+      const num = solveBlockDiagram(numericNodes, canvas.connections);
+      enterFromDiagram(normalizeTf(num.finalTransferFunction.toFormulaString()));
+    } catch (e) {
+      alert(`Could not reduce with those values: ${e.message}`);
+    }
+  });
+}
+
+function showSubstitutionModal(symbols, onConfirm) {
+  const overlay = el("div", { style:
+    "position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);" });
+  const card = el("div", { style:
+    `background:var(--bg-primary,#0f172a);border:1px solid ${BORDER};border-radius:12px;padding:20px;min-width:320px;display:flex;flex-direction:column;gap:12px;` });
+  card.append(el("div", { style: `color:${TXT};font:700 14px 'Outfit';` }, "Give each block a numeric value"));
+  card.append(el("div", { style: `color:${SUB};font:12px 'Inter';` }, "The diagram still has symbolic blocks. Enter numbers (or expressions in s) to analyze it."));
+  const inputs = {};
+  for (const sym of symbols) {
+    const row = el("div", { style: "display:flex;align-items:center;gap:10px;" });
+    row.append(el("label", { style: `color:${TXT};font:600 13px 'JetBrains Mono';min-width:48px;` }, `${sym} =`));
+    const inp = el("input", { type: "text", placeholder: "e.g. 5 or 1/(s+2)", style:
+      `flex:1;background:rgba(30,41,59,0.5);color:${TXT};border:1px solid ${BORDER};border-radius:6px;padding:7px;font:13px 'JetBrains Mono';` });
+    inputs[sym] = inp;
+    row.append(inp);
+    card.append(row);
+  }
+  const btns = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;margin-top:4px;" });
+  const cancel = el("button", { style: `background:rgba(30,41,59,0.7);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "Cancel");
+  const ok = el("button", { style: "background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:8px 16px;font:600 12px 'Outfit';cursor:pointer;" }, "Use it →");
+  cancel.onclick = () => overlay.remove();
+  ok.onclick = () => {
+    const values = {};
+    for (const sym of symbols) {
+      const v = inputs[sym].value.trim();
+      if (!v) { inputs[sym].style.borderColor = "#ef4444"; return; }
+      values[sym] = v;
+    }
+    overlay.remove();
+    onConfirm(values);
+  };
+  btns.append(cancel, ok);
+  card.append(btns);
+  overlay.append(card);
+  document.body.appendChild(overlay);
+  inputs[symbols[0]].focus();
+}
+
+function enterFromDiagram(tf) {
+  setHandoff(tf);
+  state.setMode(true);
+  renderChooser(tf);
+}
+
+function renderChooser(tf) {
+  const c = state.chooser;
+  c.innerHTML = "";
+  c.style.display = "flex";
+  c.append(el("div", { style: `color:${TXT};font:600 12px 'Outfit';` }, "From the block diagram:"));
+  const tfEl = el("div", { style: `color:#a5b4fc;font:12px 'JetBrains Mono';overflow-x:auto;` }); tfEl.textContent = `G(s) = ${tf}`;
+  c.append(tfEl);
+  c.append(el("div", { style: `color:${SUB};font:11px 'Inter';` }, "What do you want to do with it?"));
+  const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
+  for (const ch of BRIDGE_CHOICES) {
+    const chip = el("button", { title: `treats G as ${ch.note}`, style:
+      `background:rgba(30,41,59,0.7);color:${TXT};border:1px solid ${BORDER};border-radius:999px;padding:6px 11px;font:600 11px 'Outfit';cursor:pointer;` });
+    chip.textContent = `${ch.label} · ${ch.note}`;
+    chip.onclick = () => { const handoff = consumeHandoff() || tf; state.setG(ch.fn, handoff); c.style.display = "none"; };
+    chips.append(chip);
+  }
+  c.append(chips);
 }
 
 function renderForm(form, box, explain, matchWrap, matchSel) {

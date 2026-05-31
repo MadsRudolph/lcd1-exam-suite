@@ -133,6 +133,34 @@ export const FORMS = [
     ],
     explanation: "Structure of a realisable feed-forward controller F_d(s).",
   },
+  // ---- Analysis (general-TF tools; also the Block Diagram bridge landing spots) ----
+  {
+    pattern: "Analysis", title: "Characterize TF", variant: "poles, ζ, ωₙ, step specs", fn: "characterize",
+    resultKind: "INFO",
+    fields: [{ name: "G", label: "G(s) (closed-loop)", kind: "tf", placeholder: "1/(s**2+2*s+2)", tooltip: "A closed-loop TF to characterize: poles, DC gain, and 2nd-order specs." }],
+    explanation: "Poles/zeros, DC gain, and — for a 2nd-order TF — ζ, ωₙ and the full second-order table.",
+  },
+  {
+    pattern: "Analysis", title: "Bandwidth", variant: "−3 dB bandwidth", fn: "bandwidth",
+    resultKind: "NUMBER",
+    fields: [{ name: "G", label: "G(s) (closed-loop)", kind: "tf", placeholder: "1/(s+2)", tooltip: "Closed-loop TF; bandwidth is the −3 dB point from DC." }],
+    explanation: "Closed-loop bandwidth: the frequency where |G| drops 3 dB below its DC value.",
+  },
+  {
+    pattern: "Analysis", title: "Settling time", variant: "dominant-pole t_s", fn: "dominant_settling",
+    resultKind: "INFO",
+    fields: [{ name: "G", label: "G(s) (closed-loop)", kind: "tf", placeholder: "1/((s+1)*(s+10))", tooltip: "Stable closed-loop TF; settling from the dominant pole." }],
+    explanation: "Dominant-pole settling time (2% and 5%) of a stable closed-loop TF.",
+  },
+  {
+    pattern: "Analysis", title: "Closed-loop stability", variant: "Nyquist / RHP-pole count", fn: "analyze_stability",
+    resultKind: "INFO",
+    fields: [
+      { name: "G", label: "G(s) (open-loop)", kind: "tf", placeholder: "(s+10)/((s-1)*(s+5))", tooltip: "Open-loop plant; stability of 1 + K·G is checked by counting closed-loop RHP poles." },
+      { name: "K", label: "K", kind: "float", default: "1", placeholder: "1", tooltip: "Loop gain." },
+    ],
+    explanation: "Closed-loop stability of 1 + K·G: open-loop and closed-loop RHP-pole counts (handles RHP plants).",
+  },
   {
     pattern: "P7", title: "P7 — Nested ess", variant: "K from nested-loop ess", fn: "solve_nested_ess",
     resultKind: "NUMBER",

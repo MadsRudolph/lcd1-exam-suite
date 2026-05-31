@@ -8,6 +8,7 @@ import { solve2ndOrder, solveKForSpec, solveClosedLoop2ndOrder } from "./spike/s
 import { solveKPFromEss, solveEssTable } from "./spike/solvers/p5.js";
 import { solvePiLead, solvePForPM, solvePiLeadDesign, solveLagBeta } from "./spike/solvers/p6.js";
 import { solveNestedEss, pickFeedforwardForm } from "./spike/solvers/p7.js";
+import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from "./spike/solvers/analysis.js";
 import { solveOdeToTf, solveStateSpaceToTf } from "./spike/solvers/p1.js";
 import { composeTfFromBode } from "./spike/solvers/p2.js";
 import { parseQuestion } from "./spike/smart-paste.js";
@@ -135,6 +136,35 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
       case "solve_nested_ess": {
         const K = solveNestedEss({ architecture: inp.architecture, G0: fnum(inp.G0), ess_target: fnum(inp.ess_target), eps1: fnum(inp.eps1), eps2: fnum(inp.eps2), G2_0: fnum(inp.G2_0) });
         numResult(out, inp.architecture === "nested_K1_K2" ? "K_2" : "K_P", K, optionsText);
+        break;
+      }
+      case "characterize": {
+        const c = characterizeTf(parseTf(inp.G));
+        const polesStr = c.poles.map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ");
+        out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)]];
+        if (c.is_second_order) {
+          out.latex = `\\zeta=${fmt(c.zeta)},\\ \\omega_n=${fmt(c.omega_n)}`;
+          out.summary.push(["ζ", plain(c.zeta)], ["ω_n", plain(c.omega_n)]);
+          if (c.metrics) for (const [k, v] of Object.entries(c.metrics)) out.summary.push([k, plain(v)]);
+        } else {
+          out.latex = `\\text{poles: }${polesStr}`;
+        }
+        break;
+      }
+      case "bandwidth": {
+        numResult(out, "\\omega_{BW}", bandwidth(parseTf(inp.G)), optionsText);
+        break;
+      }
+      case "dominant_settling": {
+        const r = dominantSettling(parseTf(inp.G));
+        out.latex = `t_s^{2\\%}=${fmt(r.t_s_2pct)},\\ t_s^{5\\%}=${fmt(r.t_s_5pct)}`;
+        out.summary = [["dominant pole", `${plain(r.dominant_pole.re)}${r.dominant_pole.im >= 0 ? "+" : "-"}${plain(Math.abs(r.dominant_pole.im))}j`], ["t_s 2%", plain(r.t_s_2pct)], ["t_s 5%", plain(r.t_s_5pct)]];
+        break;
+      }
+      case "analyze_stability": {
+        const r = analyzeStability(parseTf(inp.G), fnum(inp.K) ?? 1);
+        out.latex = `\\text{${r.stable ? "stable" : "UNSTABLE"}}\\ (Z=${r.closedLoopRhpPoles})`;
+        out.summary = [["open-loop RHP poles", r.openLoopRhpPoles], ["closed-loop RHP poles", r.closedLoopRhpPoles], ["stable?", r.stable ? "yes" : "no"]];
         break;
       }
       default:
