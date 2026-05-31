@@ -67,3 +67,16 @@ test("opaque blocks G,H -> G/(GH+1)", () => {
   assert.equal(r.num.map(m => m.toString()).join(","), "G");
   assert.equal(r.den.map(m => m.toString()).join(","), "GH + 1");
 });
+
+test("rejects a source node as the sink", () => {
+  const nodes = [
+    { id: "R", type: "input",  value: "1", label: "R" },
+    { id: "G", type: "block",  value: "G", label: "G" },
+    { id: "Y", type: "output", value: "1", label: "Y" },
+  ];
+  const conns = [
+    { id: "c1", fromNode: "R", toNode: "G", sign: "" },
+    { id: "c2", fromNode: "G", toNode: "Y", sign: "" },
+  ];
+  assert.throws(() => solveExact(nodes, conns, "R", "R"), /Sink must be an output/);
+});

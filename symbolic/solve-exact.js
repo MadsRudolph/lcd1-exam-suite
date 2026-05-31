@@ -7,6 +7,7 @@ export function solveExact(nodes, connections, sourceId, sinkId) {
     const sinkNode = nodes.find(n => n.id === sinkId);
     if (!nodes.find(n => n.id === sourceId)) throw new Error("Missing source node");
     if (!sinkNode) throw new Error("Missing sink node");
+    if (SOURCE_TYPES.includes(sinkNode.type)) throw new Error("Sink must be an output node, not a source");
 
     const base = [
         ...nodes.filter(n => n.type === "block"),
