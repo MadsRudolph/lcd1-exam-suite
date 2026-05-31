@@ -5,6 +5,8 @@ import { Complex } from "../numeric/complex.js";
 import { logspace, solveMargins } from "../numeric/margins.js";
 import { dominantSettling, bandwidth, analyzeStability, characterizeTf } from "./analysis.js";
 
+const tryOr = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
+
 export { logspace };
 
 /** Default decade range: two decades either side of the pole/zero magnitudes. */
@@ -129,8 +131,6 @@ export function stepData(tf, opts = {}) {
   return { t, y };
 }
 
-const tryOr = (fn, fallback = null) => { try { return fn(); } catch { return fallback; } };
-
 export function poleZeroData(tf) {
   const map = (c) => ({ re: c.re, im: c.im });
   return { poles: tf.poles().map(map), zeros: tf.zeros().map(map) };
@@ -148,9 +148,9 @@ export function plotAnnotations(tf) {
 
   const bode = margins ? {
     GM_dB: Number.isFinite(margins.GM) ? 20 * Math.log10(margins.GM) : Infinity,
-    PM_deg: margins.PM_deg,
-    omega_pc: margins.omega_pc,
-    omega_gc: margins.omega_gc,
+    PM_deg: Number.isFinite(margins.PM_deg) ? margins.PM_deg : null,
+    omega_pc: Number.isFinite(margins.omega_pc) ? margins.omega_pc : null,
+    omega_gc: Number.isFinite(margins.omega_gc) ? margins.omega_gc : null,
     omega_BW: bw,
   } : { omega_BW: bw };
 

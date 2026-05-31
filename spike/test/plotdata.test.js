@@ -88,4 +88,7 @@ test("plotAnnotations is null-safe and fills what it can", () => {
   assert.ok(ann.nyquist && typeof ann.nyquist.stable === "boolean", "stability verdict");
   // an always-stable closed TF has no finite PM crossover; must not throw
   assert.doesNotThrow(() => plotAnnotations(parseTf("1/(s+1)")));
+  const ann2 = plotAnnotations(parseTf("1/(s+1)"));
+  assert.ok(ann2.bode.PM_deg === null || Number.isFinite(ann2.bode.PM_deg), "PM_deg is null or finite, never Infinity/NaN");
+  assert.ok(ann2.bode.omega_gc === null || Number.isFinite(ann2.bode.omega_gc), "omega_gc is null or finite");
 });
