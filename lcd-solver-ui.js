@@ -6,7 +6,7 @@ import { runSolver, routeQuestion } from "./lcd-engine.js";
 import { setHandoff, consumeHandoff } from "./lcd-handoff.js";
 import { solveBlockDiagram } from "./solver.js";
 
-const VERSION = "v1.2.0";
+const VERSION = "v1.2.1";
 
 // Solvers offered when a G(s) arrives from the Block Diagram, with the open/closed-loop hint.
 const BRIDGE_CHOICES = [
@@ -36,8 +36,92 @@ const FLAG = {
   unparseable: { c: "#ef4444", t: "? unparseable" },
 };
 const BORDER = "var(--border-color,#334155)";
-const TXT = "var(--text-primary,#e2e8f0)";
+const TXT = "var(--text-primary,#f8fafc)";
 const SUB = "var(--text-secondary,#94a3b8)";
+const CARD = "var(--bg-card,rgba(15,23,42,0.92))";
+const SURFACE = "var(--bg-surface,rgba(30,41,59,0.45))";
+
+// Group headers + accent colour for the solver dropdown.
+const GROUPS = {
+  P1: { name: "Models · ODE / state-space → TF", color: "#a855f7" },
+  P2: { name: "Bode read-off → G(s)", color: "#3b82f6" },
+  P3: { name: "Stability & margins", color: "#10b981" },
+  P4: { name: "Second-order specs", color: "#3b82f6" },
+  P5: { name: "Steady-state error", color: "#a855f7" },
+  P6: { name: "Controller design", color: "#10b981" },
+  P7: { name: "Theory & nested loops", color: "#3b82f6" },
+  Analysis: { name: "Analysis tools", color: "#a855f7" },
+};
+
+// A custom, themed, descriptive dropdown for choosing a solver form.
+function buildSolverPicker(onSelect) {
+  let open = false;
+  let current = FORMS[0];
+  const root = el("div", { style: "position:relative;font-family:'Inter',sans-serif;" });
+
+  const trigger = el("button", { type: "button", style:
+    `width:100%;display:flex;align-items:center;justify-content:space-between;gap:8px;text-align:left;` +
+    `background:${SURFACE};color:${TXT};border:1px solid ${BORDER};border-radius:10px;padding:10px 12px;cursor:pointer;transition:border-color .15s;` });
+  const triggerText = el("span", { style: "display:flex;flex-direction:column;gap:2px;min-width:0;" });
+  const chevron = el("span", { style: `color:${SUB};font-size:10px;transition:transform .18s;flex:none;` }, "▼");
+  trigger.append(triggerText, chevron);
+
+  const menu = el("div", { style:
+    `position:absolute;top:calc(100% + 6px);left:0;right:0;z-index:50;display:none;max-height:380px;overflow:auto;` +
+    `background:${CARD};backdrop-filter:blur(16px);-webkit-backdrop-filter:blur(16px);border:1px solid ${BORDER};` +
+    `border-radius:12px;box-shadow:0 16px 40px rgba(0,0,0,0.5);padding:6px;` });
+
+  const entryEls = new Map();
+  const byPattern = {};
+  for (const f of FORMS) (byPattern[f.pattern] ||= []).push(f);
+
+  for (const [pattern, forms] of Object.entries(byPattern)) {
+    const g = GROUPS[pattern] || { name: pattern, color: "#3b82f6" };
+    menu.append(el("div", { style:
+      `display:flex;align-items:center;gap:7px;padding:9px 10px 5px;color:${SUB};font:700 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;` },
+      `<span style="width:6px;height:6px;border-radius:50%;background:${g.color};display:inline-block;"></span>${g.name}`));
+    for (const f of forms) {
+      const entry = el("button", { type: "button", style:
+        `width:100%;text-align:left;display:flex;flex-direction:column;gap:1px;background:transparent;border:none;` +
+        `border-left:2px solid transparent;border-radius:8px;padding:8px 10px;cursor:pointer;transition:background .12s,border-color .12s;` });
+      entry.append(
+        el("span", { style: `color:${TXT};font:600 13px 'Outfit';` }, f.title.replace(/^P\d+ — |^Analysis — /, "")),
+        el("span", { style: `color:${SUB};font:400 11px 'Inter';` }, f.variant),
+      );
+      entry.onmouseenter = () => { if (current.fn !== f.fn) entry.style.background = SURFACE; };
+      entry.onmouseleave = () => { if (current.fn !== f.fn) entry.style.background = "transparent"; };
+      entry.onclick = () => { close(); onSelect(f.fn); };
+      entryEls.set(f.fn, { entry, color: g.color });
+      menu.append(entry);
+    }
+  }
+
+  function paintSelected() {
+    for (const [fn, { entry }] of entryEls) {
+      const on = fn === current.fn;
+      entry.style.background = on ? "rgba(59,130,246,0.12)" : "transparent";
+      entry.style.borderLeftColor = on ? "#3b82f6" : "transparent";
+    }
+    const g = GROUPS[current.pattern] || { color: "#3b82f6" };
+    triggerText.innerHTML =
+      `<span style="display:flex;align-items:center;gap:7px;color:${TXT};font:600 13px 'Outfit';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">` +
+      `<span style="font:700 10px 'JetBrains Mono';color:${g.color};border:1px solid ${g.color}55;border-radius:5px;padding:1px 5px;flex:none;">${current.pattern}</span>` +
+      `${current.title.replace(/^P\d+ — |^Analysis — /, "")}</span>` +
+      `<span style="color:${SUB};font:400 11px 'Inter';overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${current.variant}</span>`;
+  }
+
+  const outside = (e) => { if (!root.contains(e.target)) close(); };
+  function openMenu() { open = true; menu.style.display = "block"; chevron.style.transform = "rotate(180deg)"; trigger.style.borderColor = "#3b82f6"; document.addEventListener("mousedown", outside); }
+  function close() { open = false; menu.style.display = "none"; chevron.style.transform = "rotate(0)"; trigger.style.borderColor = "var(--border-color,#334155)"; document.removeEventListener("mousedown", outside); }
+  trigger.onclick = () => (open ? close() : openMenu());
+
+  root.append(trigger, menu);
+  paintSelected();
+  return {
+    root,
+    setSelected: (fn) => { current = formByFn(fn) || current; paintSelected(); },
+  };
+}
 
 function el(tag, attrs = {}, html) {
   const e = document.createElement(tag);
@@ -86,18 +170,12 @@ function init() {
   pasteRow.append(pasteBtn, sampleBtn);
   left.append(ta, pasteRow);
 
-  // solver picker
+  // solver picker (custom themed dropdown)
   left.append(el("div", { style: `height:1px;background:${BORDER};margin:4px 0;` }));
-  const pickerLabel = el("label", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "Solver");
-  const picker = el("select", { id: "lcd-picker", style:
-    `background:rgba(30,41,59,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:9px;font:13px 'Inter';cursor:pointer;` });
-  const groups = {};
-  for (const f of FORMS) {
-    const g = groups[f.pattern] || (groups[f.pattern] = el("optgroup", { label: f.pattern }));
-    g.append(el("option", { value: f.fn }, f.title.replace(/^P\d+ — /, "") + " — " + f.variant));
-  }
-  Object.values(groups).forEach((g) => picker.append(g));
-  left.append(pickerLabel, picker);
+  left.append(el("label", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "Solver"));
+  const pickerComp = buildSolverPicker((fn) => selectForm(fn));
+  state.picker = pickerComp;
+  left.append(pickerComp.root);
 
   const explain = el("div", { style: `color:${SUB};font:400 11px 'Inter';line-height:1.5;font-style:italic;` });
   left.append(explain);
@@ -148,8 +226,7 @@ function init() {
   tabLCD.onclick = () => setMode(true);
   setMode(false);
 
-  const selectForm = (fn) => { picker.value = fn; renderForm(formByFn(fn), formBox, explain, matchWrap, matchSel); };
-  picker.onchange = () => selectForm(picker.value);
+  const selectForm = (fn) => { state.picker.setSelected(fn); renderForm(formByFn(fn), formBox, explain, matchWrap, matchSel); };
   solveBtn.onclick = solve;
   matchSel.onchange = () => { state.matchKey = matchSel.value; solve(); };
   pasteBtn.onclick = () => doPaste(ta.value, selectForm, optEl, matchSel, matchWrap);
