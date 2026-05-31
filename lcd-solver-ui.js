@@ -57,7 +57,7 @@ function card(k, v) {
   c.append(val);
   return c;
 }
-const numFmt = (x, dp = 4) => (x == null ? "—" : x === Infinity ? "∞" : x === -Infinity ? "-∞" : String(Number(x.toPrecision(dp))));
+const numFmt = (x, dp = 4) => (x == null || (typeof x === "number" && Number.isNaN(x)) ? "—" : x === Infinity ? "∞" : x === -Infinity ? "-∞" : String(Number(x.toPrecision(dp))));
 
 function sectionLabel(t) {
   return el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;margin-top:6px;` }, t);
