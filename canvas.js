@@ -17,6 +17,39 @@ export function isValidPortConnection(startNode, startPortType, targetNode, targ
     );
 }
 
+/** Convert a screen pixel (relative to the svg's bounding rect) into world coords. */
+export function screenToWorld(clientX, clientY, rect, vb) {
+  return {
+    x: vb.x + (clientX - rect.left) / rect.width * vb.w,
+    y: vb.y + (clientY - rect.top) / rect.height * vb.h,
+  };
+}
+
+/** New viewBox after scaling by `factor` while keeping world point `pt` fixed.
+ *  factor < 1 zooms in (smaller viewBox), > 1 zooms out. Aspect ratio preserved.
+ *  clamp = { minW, maxW } bounds the viewBox width. */
+export function zoomAroundPoint(vb, pt, factor, clamp = {}) {
+  const aspect = vb.h / vb.w;
+  let w = vb.w * factor;
+  if (clamp.minW != null) w = Math.max(clamp.minW, w);
+  if (clamp.maxW != null) w = Math.min(clamp.maxW, w);
+  const h = w * aspect;
+  const rx = (pt.x - vb.x) / vb.w;
+  const ry = (pt.y - vb.y) / vb.h;
+  return { x: pt.x - rx * w, y: pt.y - ry * h, w, h };
+}
+
+/** Smallest viewBox enclosing all node centres plus `padding`; null if no nodes. */
+export function fitBox(nodes, padding = 60) {
+  if (!nodes.length) return null;
+  let minX = Infinity, minY = Infinity, maxX = -Infinity, maxY = -Infinity;
+  for (const n of nodes) {
+    minX = Math.min(minX, n.x); maxX = Math.max(maxX, n.x);
+    minY = Math.min(minY, n.y); maxY = Math.max(maxY, n.y);
+  }
+  return { x: minX - padding, y: minY - padding, w: (maxX - minX) + 2 * padding, h: (maxY - minY) + 2 * padding };
+}
+
 export class BlockDiagramCanvas {
     constructor(svgElement, onStateChange = () => {}) {
         this.svg = svgElement;
