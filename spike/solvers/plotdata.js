@@ -2,15 +2,9 @@
 // Pure compute layer for the plotting feature. In: a NumericTF. Out: plain
 // data objects. No DOM, no rendering — fully unit-testable.
 import { Complex } from "../numeric/complex.js";
+import { logspace } from "../numeric/margins.js";
 
-/** n points geometrically spaced from 10^a to 10^b (inclusive). */
-export function logspace(a, b, n) {
-  if (n < 2) return [10 ** a];
-  const out = [];
-  const step = (b - a) / (n - 1);
-  for (let i = 0; i < n; i++) out.push(10 ** (a + i * step));
-  return out;
-}
+export { logspace };
 
 /** Default decade range: two decades either side of the pole/zero magnitudes. */
 function autoFreqRange(tf) {
@@ -36,13 +30,14 @@ export function bodeData(tf, opts = {}) {
   const [a, b] = opts.wMin != null && opts.wMax != null
     ? [Math.log10(opts.wMin), Math.log10(opts.wMax)]
     : autoFreqRange(tf);
-  const n = opts.n || 600;
+  const n = opts.n != null ? opts.n : 600;
   const omega = logspace(a, b, n);
   const magDb = [];
   const phaseRaw = [];
   for (const w of omega) {
     const G = tf.evalAt(new Complex(0, w));
-    magDb.push(20 * Math.log10(G.abs()));
+    const mag = G.abs();
+    magDb.push(mag > 1e-12 ? 20 * Math.log10(mag) : -240); // floor instead of -Infinity at a jw-axis zero
     phaseRaw.push(G.arg());
   }
   const phaseDeg = unwrap(phaseRaw).map((p) => (p * 180) / Math.PI);
