@@ -48,8 +48,8 @@ export function nyquistData(tf, opts = {}) {
   const [a, b] = opts.wMin != null && opts.wMax != null
     ? [Math.log10(opts.wMin), Math.log10(opts.wMax)]
     : autoFreqRange(tf);
-  const n = opts.n || 800;
-  const cap = opts.cap || 1e3;
+  const n = opts.n != null ? opts.n : 800;
+  const cap = opts.cap != null ? opts.cap : 1e3;
   const omega = logspace(a, b, n);
   const re = [];
   const im = [];
