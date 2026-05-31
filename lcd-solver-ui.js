@@ -255,6 +255,12 @@ function init() {
     if (refField) refField.value = tf;
     solve();
   };
+  state.setL = (tf) => {
+    selectForm("symbolic_analysis");
+    const lField = state.fields.get("L");
+    if (lField) lField.value = tf;
+    solve();
+  };
 
   window.LCDBridge = {
     onSolved: (result, canvas) => mountUseButton(result, canvas),
@@ -385,11 +391,17 @@ function renderChooser(tf) {
 
   // Symbolic path — keep K, a, … symbolic and test multiple-choice answers.
   c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:2px;` }, "Test answer options without plugging in numbers:"));
+  const symChips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   const symChip = el("button", { title: "keep parameters symbolic and test exam answers for algebraic equality", style:
-    `align-self:flex-start;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
-    "∑ Test against answer options (symbolic)");
+    `background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
+    "∑ Test against answer options");
   symChip.onclick = () => { state.setRef(tf); c.style.display = "none"; };
-  c.append(symChip);
+  const dashChip = el("button", { title: "treat this as the loop gain L and show closed-loop, type, order, K₀ and ess together", style:
+    `background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
+    "∑ Loop answers (closed-loop · type · ess)");
+  dashChip.onclick = () => { state.setL(tf); c.style.display = "none"; };
+  symChips.append(symChip, dashChip);
+  c.append(symChips);
 
   // Numeric path — the existing analysis solvers.
   c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:6px;` }, "Or analyze it numerically:"));

@@ -20,6 +20,7 @@ import { order as symOrder, systemType, staticGain } from "./symbolic/analysis.j
 import { essStep, essRamp, essDisturbanceStep } from "./symbolic/ess.js";
 import { solveForSymbol } from "./symbolic/solve-symbol.js";
 import { linearizeFirstOrder } from "./symbolic/linearize.js";
+import { feedback } from "./symbolic/combinators.js";
 import { renderSymTF } from "./symbolic/render.js";
 import { formByFn } from "./lcd-forms.js";
 
@@ -218,8 +219,10 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         const L = parseExprToTF(inp.L);
         const N = systemType(L);
         const ord = symOrder(L);
-        out.latex = `\\text{type } ${N},\\quad \\text{order } ${ord}`;
+        const Tcl = renderSymTF(feedback(L)); // closed-loop T = L/(1+L), unity feedback
+        out.latex = `T(s) = ${Tcl.toKaTeX()}`;
         out.summary = [
+          ["closed-loop T = L/(1+L)", Tcl.toFormulaString()],
           ["order", String(ord)],
           ["type (N)", String(N)],
           ["K₀ = lim sᴺ·L", ratStr(staticGain(L))],

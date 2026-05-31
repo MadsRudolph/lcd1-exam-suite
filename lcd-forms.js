@@ -172,12 +172,12 @@ export const FORMS = [
     explanation: "Closed-loop stability of 1 + K·G: open-loop and closed-loop RHP-pole counts (handles RHP plants).",
   },
   {
-    pattern: "Analysis", title: "Symbolic loop analysis", variant: "type · order · K₀ · ess (in symbols)", fn: "symbolic_analysis",
+    pattern: "Analysis", title: "Symbolic loop analysis", variant: "closed-loop · type · order · K₀ · ess (in symbols)", fn: "symbolic_analysis",
     resultKind: "INFO",
     fields: [
-      { name: "L", label: "Loop gain L(s) = C·G·H (parameters kept symbolic)", kind: "str", placeholder: "Kp*b*c/(s*(tau*s+1))", tooltip: "The open-loop / loop-gain transfer function in s with literal parameters (a, b, K, Kp, tau…). Returns system type, order, static loop gain K₀, and the steady-state error to a step and a ramp — all in symbols." },
+      { name: "L", label: "Loop gain L(s) = C·G·H (parameters kept symbolic)", kind: "str", placeholder: "Kp*b*c/(s*(tau*s+1))", tooltip: "The open-loop / loop-gain transfer function in s with literal parameters (a, b, K, Kp, tau…). Or send it straight from a drawn block diagram. Returns the closed-loop T = L/(1+L), system type, order, static loop gain K₀, and the steady-state error to a step and a ramp — all in symbols." },
     ],
-    explanation: "System type (poles at the origin), order, static loop gain K₀ = lim s^N·L, and the steady-state error to a unit step (1/(1+K₀) for type 0, 0 for type ≥ 1) and unit ramp (1/Kv) — computed symbolically.",
+    explanation: "From the loop gain L(s): the closed-loop transfer function T = L/(1+L), system type (poles at the origin), order, static loop gain K₀ = lim s^N·L, and the steady-state error to a unit step (1/(1+K₀) for type 0, 0 for type ≥ 1) and unit ramp (1/Kv) — all computed symbolically. One drawn diagram → every grouped sub-answer.",
   },
   {
     pattern: "Analysis", title: "Disturbance ess", variant: "step at a named node", fn: "symbolic_disturbance_ess",
