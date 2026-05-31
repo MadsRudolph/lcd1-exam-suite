@@ -1,8 +1,8 @@
 // LCD1 Solver mode: a floating switcher + a full-screen panel overlaid on the
 // Block Diagram Reducer. Form-centric: every solver shows its editable fields,
 // and Smart Paste *pre-fills* the matching form (you review/correct, then solve).
-import { FORMS, formByFn, formsInGroup } from "./lcd-forms.js";
-import { runSolver, routeQuestion, analyzeNumeric, analyzeSymbolic, isSymbolicTf } from "./lcd-engine.js";
+import { formsInGroup } from "./lcd-forms.js";
+import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf } from "./lcd-engine.js";
 import { setHandoff } from "./lcd-handoff.js";
 import { solveBlockDiagram } from "./solver.js";
 import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
@@ -35,8 +35,6 @@ const FLAG = {
 const BORDER = "var(--border-color,#334155)";
 const TXT = "var(--text-primary,#f8fafc)";
 const SUB = "var(--text-secondary,#94a3b8)";
-const CARD = "var(--bg-card,rgba(15,23,42,0.92))";
-const SURFACE = "var(--bg-surface,rgba(30,41,59,0.45))";
 
 function el(tag, attrs = {}, html) {
   const e = document.createElement(tag);
@@ -49,7 +47,7 @@ function katex(target, latex, display = true) {
   catch { target.textContent = latex; }
 }
 
-let state = { resultsEl: null };
+let state = {};
 
 function card(k, v) {
   const c = el("div", { style: `background:#101a2e;border:1px solid #2c3a55;border-radius:9px;padding:9px 11px;` });
@@ -230,11 +228,11 @@ function init() {
 
   // ---- panel ----
   const panel = el("div", { id: "lcd-panel", style:
-    "position:fixed;inset:0;z-index:900;display:none;grid-template-columns:minmax(420px,1fr) 1fr;" +
+    "position:fixed;inset:0;z-index:900;display:none;grid-template-columns:1fr;" +
     "background:var(--bg-primary,#0f172a);padding:60px 0 0 0;overflow:hidden;" });
 
   // left column (scrolls)
-  const left = el("div", { style: `padding:20px 24px;overflow:auto;border-right:1px solid ${BORDER};display:flex;flex-direction:column;gap:14px;` });
+  const left = el("div", { style: `padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:14px;` });
 
   // header
   left.append(el("h2", { style: `margin:0;color:${TXT};font:700 16px 'Outfit',sans-serif;` }, "∑ LCD1 Solver"));
@@ -264,14 +262,7 @@ function init() {
   sysBox.addEventListener("input", () => analyzeAndRender());
   state.analyzeAndRender = analyzeAndRender;
 
-  // right column (results)
-  const right = el("div", { style: "padding:24px;overflow:auto;" });
-  const results = el("div", { id: "lcd-results", style: `color:${SUB};font:13px 'Inter';display:flex;flex-direction:column;gap:14px;` },
-    "<div style='text-align:center;margin-top:60px;font-style:italic;'>Fill a form (or paste a question) and solve.</div>");
-  right.append(results);
-  state.resultsEl = results;
-
-  panel.append(left, right);
+  panel.append(left);
   document.body.appendChild(panel);
 
   // ---- behaviour ----
@@ -516,78 +507,6 @@ function renderPlotPanel(pd, defaultTab = "Step") {
   return wrap;
 }
 
-function renderResults(body, res) {
-  body.innerHTML = "";
-  if (!res.ok) {
-    body.append(el("div", { style: `color:#f59e0b;font:13px 'Inter';line-height:1.5;background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:12px;` }, res.note || "Could not solve."));
-    return;
-  }
-  body.append(el("div", { style:
-    `display:inline-block;align-self:flex-start;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);border-radius:999px;padding:5px 12px;font:600 11px 'Outfit';` }, res.prettyName));
-
-  if (res.latex) {
-    const card = el("div", { style: `background:rgba(30,41,59,0.35);border:1px solid ${BORDER};border-radius:12px;padding:18px;` });
-    card.append(el("div", { style: `color:${SUB};font:600 11px 'Outfit';margin-bottom:10px;text-transform:uppercase;letter-spacing:.5px;` }, "Result"));
-    const m = el("div", { style: `color:${TXT};overflow-x:auto;` });
-    katex(m, res.latex, true);
-    card.append(m);
-    body.append(card);
-  }
-
-  if (res.summary && res.summary.length) {
-    body.append(el("div", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "All computed values"));
-    const tbl = el("div", { style: "display:grid;grid-template-columns:auto 1fr;gap:6px 16px;font:13px 'JetBrains Mono';" });
-    for (const [k, v] of res.summary) {
-      const key = el("div", { style: `color:${res.matchedKey === k ? "#10b981" : SUB};` }); key.textContent = k;
-      tbl.append(key, el("div", { style: `color:${TXT};` }, String(v)));
-    }
-    body.append(tbl);
-  }
-
-  if (res.options && res.options.length) {
-    body.append(el("div", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;margin-top:4px;` }, "Options"));
-    const list = el("div", { style: "display:flex;flex-direction:column;gap:6px;" });
-    for (const o of res.options) {
-      const st = FLAG[o.flag] || FLAG.no_match;
-      const row = el("div", { style:
-        `display:flex;justify-content:space-between;align-items:center;gap:10px;padding:8px 12px;border-radius:8px;` +
-        `border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};background:${o.flag === "match" ? "rgba(16,185,129,0.08)" : "rgba(30,41,59,0.25)"};font:13px 'JetBrains Mono';` });
-      // textContent (NOT innerHTML) — o.raw_text is user-pasted; never inject it as markup.
-      const valSpan = el("span", { style: `color:${st.c};` }); valSpan.textContent = o.raw_text;
-      const tagSpan = el("span", { style: `color:${st.c};font:600 11px 'Outfit';` }); tagSpan.textContent = st.t + (o.note ? `  ${o.note}` : "");
-      row.append(valSpan, tagSpan);
-      list.append(row);
-    }
-    body.append(list);
-  }
-
-  if (res.note) body.append(el("div", { style: `color:#f59e0b;font:13px 'Inter';line-height:1.5;` }, res.note));
-  if (res.plotData) body.append(renderPlotPanel(res.plotData, res.plotDefaultTab));
-
-  if (res.tf && !res.plotData) {
-    const bar = el("div", { style: "display:flex;gap:6px;margin-top:6px;" });
-    const view = el("div", { style: "overflow-x:auto;margin-top:6px;" });
-    const make = (label, fn) => {
-      const b = el("button", { style:
-        `background:rgba(30,41,59,0.5);color:#a5b4fc;border:1px solid ${BORDER};` +
-        `border-radius:8px;padding:6px 12px;font:600 11px 'Outfit';cursor:pointer;` }, label);
-      b.onclick = () => {
-        try {
-          const pd = buildPlotData(parseTf(res.tf));
-          view.innerHTML = fn(pd);
-          attachHover(view, pd);
-        } catch (e) { view.textContent = "Could not plot: " + e.message; }
-      };
-      return b;
-    };
-    bar.append(
-      make("Step", (pd) => stepPlot(pd.step, pd.annotations.step || {})),
-      make("Bode", (pd) => bodePlot(pd.bode, pd.annotations.bode || {})),
-      make("Nyquist", (pd) => nyquistPlot(pd.nyquist, pd.annotations.nyquist || {})),
-    );
-    body.append(bar, view);
-  }
-}
 
 if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", init);
 else init();
