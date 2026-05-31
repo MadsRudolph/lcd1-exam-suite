@@ -8,7 +8,9 @@ import { solve2ndOrder } from "./solvers/p4.js";
 import { solveKPFromEss, solveEssTable } from "./solvers/p5.js";
 import { solvePiLead, solvePForPM } from "./solvers/p6.js";
 import { composeTfFromBode } from "./solvers/p2.js";
-import { solveNestedEss } from "./solvers/p7.js";
+import { solveNestedEss, pickFeedforwardForm } from "./solvers/p7.js";
+import { parseQuestion } from "./smart-paste.js";
+import { readFileSync } from "node:fs";
 
 const argv = process.argv.slice(2);
 const cmd = argv[0];
@@ -167,8 +169,96 @@ function commands() {
       line("result", fmt(res));
       break;
     }
+    case "question": {
+      const f = flags(argv.slice(1));
+      const text = f.file ? readFileSync(f.file, "utf8") : f._.join(" ");
+      if (!text.trim()) return usage();
+      runQuestion(text);
+      break;
+    }
     default:
       usage();
+  }
+}
+
+// Route pasted exam text and solve it when the solver is ported in this spike.
+function runQuestion(text) {
+  const r = parseQuestion(text);
+  if (!r) {
+    console.log("Could not match this question to a solver pattern.");
+    return;
+  }
+  console.log(`Routed to: ${r.solver_function}`);
+  if (Object.keys(r.inputs).length) {
+    console.log("Extracted inputs:");
+    for (const [k, v] of Object.entries(r.inputs)) line(k, v);
+  }
+  if (r.options) console.log(`Options:\n  ${r.options.split("\n").join("\n  ")}`);
+  console.log("Result:");
+
+  const G = () => parseTf(r.inputs.G);
+  try {
+    switch (r.solver_function) {
+      case "solve_stable_K_range": {
+        const x = solveStableKRange(G());
+        line("K range", `(${fmt(x.low)}, ${fmt(x.high)})`);
+        break;
+      }
+      case "solve_margins": {
+        const m = solveMargins(G());
+        line("GM", `${fmt(m.GM)} (${fmt(m.GM_dB)} dB)`);
+        line("PM", `${fmt(m.PM_deg)}°`);
+        break;
+      }
+      case "solve_P_for_PM": {
+        const out = solvePForPM(G(), Number(r.inputs.target_PM_deg));
+        line("K_P", fmt(out.K_P));
+        line("ω_c", fmt(out.omega_c));
+        break;
+      }
+      case "solve_ess_table": {
+        const t = solveEssTable(G());
+        line("system type", t.type);
+        line("ess step/ramp/par", `${fmt(t.ess_step)} / ${fmt(t.ess_ramp)} / ${fmt(t.ess_parabola)}`);
+        break;
+      }
+      case "solve_KP_from_ess": {
+        const i = r.inputs;
+        if (i.G0 !== undefined && i.ess_target !== undefined)
+          line("K_P", fmt(solveKPFromEss(Number(i.G0), i.G0_unit, Number(i.ess_target))));
+        else line("note", "need G(0) and ess from the text to solve K_P");
+        break;
+      }
+      case "solve_pi_lead": {
+        const i = r.inputs;
+        if (["alpha", "Ni", "KP"].includes(i.unknown)) {
+          const res = solvePiLead({
+            unknown: i.unknown,
+            omega_c: num(i.omega_c),
+            gamma_M_deg: num(i.gamma_M_deg),
+            phi_G_deg: num(i.phi_G_deg),
+            N_i: num(i.N_i),
+            alpha: num(i.alpha),
+            G: i.G ? parseTf(i.G) : null,
+          });
+          line(i.unknown, fmt(res));
+        } else {
+          line("note", `PI-Lead '${i.unknown}' mode not ported in this spike (phi_G usually read off the Bode plot)`);
+        }
+        break;
+      }
+      case "pick_feedforward_form": {
+        const out = pickFeedforwardForm({ n_lags: num(r.inputs.n_lags) ?? 3 });
+        line("option", out.option_label);
+        line("filter order", out.filter_order);
+        line("τ_f bound", out.tau_f_bound);
+        break;
+      }
+      default:
+        line("note", `'${r.solver_function}' is routed but not ported in this spike (P1/symbolic/figure solver)`);
+    }
+  } catch (e) {
+    line("note", `routed, but missing data to solve: ${e.message}`);
   }
 }
 
@@ -185,6 +275,7 @@ function usage() {
   node cli.js pi-lead       --unknown <alpha|Ni|KP> --gammaM 75 --phiG -112.77 --Ni 5 [--alpha .01] [--G "<G>"]
   node cli.js bode          --dc 6.02 --corners "1:-20,2:20" --phase "1:-90,2:-90"
   node cli.js nested-ess    --arch two_KP_same --G0 0.75 --ess 0.25
+  node cli.js question      "<paste exam text>"   |   --file question.txt
 
 Transfer functions use s, *, /, +, -, ** (or ^). Example: "900/((0.25*s+1)*(s**2+50*s+3000))"`);
 }

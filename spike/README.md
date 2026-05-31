@@ -18,6 +18,22 @@ node cli.js bode      --dc 6.02 --corners "1:-20,2:20" --phase "1:-90,2:-90"
 node cli.js nested-ess --arch two_KP_same --G0 0.75 --ess 0.25
 ```
 
+## Smart Paste — paste a whole exam question
+
+Paste the prompt (and options) straight from the PDF; the parser cleans garbled
+copy-paste (flattened `s3`, unicode minus, fraction bars split across lines),
+routes to the right solver, and solves it:
+
+```bash
+node cli.js question "A loop transfer function L(s) = K/(s(s+3)(s+10)). What gain K gives phase margin PM=40 degrees?
+1. K = 19.5
+2. K = 44
+3. K = 88"
+# -> Routed to solve_P_for_PM; K_P 87.87 (option 88)
+
+node cli.js question --file question.txt
+```
+
 Transfer functions use `s`, `*`, `/`, `+`, `-`, `**` (or `^`).
 
 ## Run the parity tests
@@ -45,5 +61,6 @@ test/      node:test parity suites (one per problem type) + cli smoke test
 | P5 ess (K_P + table) | ✅ | |
 | P6 PI-Lead + P-for-PM | ✅ | |
 | P7 feedforward + nested ess | ✅ | |
+| Smart Paste (route + extract) | ✅ | garbled-PDF TF reconstruction; P6 beta/design modes pending |
 
 See [`../docs/js-port-fidelity-spike.md`](../docs/js-port-fidelity-spike.md) for the fidelity write-up.

@@ -105,12 +105,24 @@ function makeParser(toks) {
     return node;
   }
 
+  // Tokens that begin a new atom — used to detect implicit multiplication
+  // (e.g. "0.7(s+0.5)", "5s", "s(s+3)") the way sympy's
+  // implicit_multiplication_application transform does.
+  const startsAtom = (t) => t === "num" || t === "s" || t === "(";
+
   function parseTerm() {
     let node = parseUnary();
-    while (peek().t === "*" || peek().t === "/") {
-      const op = next().t;
-      const rhs = parseUnary();
-      node = op === "*" ? rMul(node, rhs) : rDiv(node, rhs);
+    for (;;) {
+      const t = peek().t;
+      if (t === "*" || t === "/") {
+        next();
+        const rhs = parseUnary();
+        node = t === "*" ? rMul(node, rhs) : rDiv(node, rhs);
+      } else if (startsAtom(t)) {
+        // implicit multiplication: two adjacent factors with no operator
+        const rhs = parsePower();
+        node = rMul(node, rhs);
+      } else break;
     }
     return node;
   }
