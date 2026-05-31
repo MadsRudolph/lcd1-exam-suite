@@ -46,3 +46,21 @@ test("third polynomial also renders in KaTeX", () => {
   const r = renderSymTF(new SymTF([c(2), c(3), c(1)], [c(1)])); // s^2 + 3s + 2
   assert.equal(r.toKaTeX(), "s^2 + 3s + 2");
 });
+
+test("multi-term numerator over a real denominator is parenthesized in formula text", () => {
+  // (s+1)/(s+2) — numerator is a sum, must be wrapped in toFormulaString
+  const r = renderSymTF(new SymTF([c(1), c(1)], [c(2), c(1)]));
+  assert.equal(r.toFormulaString(), "(s + 1) / (s + 2)");
+  assert.equal(r.toKaTeX(), "\\frac{s + 1}{s + 2}");  // KaTeX needs no parens
+});
+
+test("single-term numerator is NOT parenthesized", () => {
+  const r = renderSymTF(new SymTF([K], [c(1), c(2), c(1)]));  // K/(s^2+2s+1)
+  assert.equal(r.toFormulaString(), "K / (s^2 + 2s + 1)");
+});
+
+test("multi-term-MPoly single-power numerator is parenthesized", () => {
+  // (2K + a)/(s+1) — numerator is one s-power but a multi-term coefficient
+  const r = renderSymTF(new SymTF([c(2).mul(K).add(a)], [c(1), c(1)]));
+  assert.equal(r.toFormulaString(), "(2K + a) / (s + 1)");
+});

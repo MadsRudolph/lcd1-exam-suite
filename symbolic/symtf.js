@@ -77,9 +77,6 @@ export class SymTF {
     }
 }
 
-// shared s-poly helpers for Task 6
-export const _spoly = { pTrim, pAdd, pSub, pMul, pNeg };
-
 // ---- polynomial-in-s arithmetic over the RatFunc field, for the s-GCD ----
 function rTrim(p) { let n = p.length; while (n > 1 && p[n - 1].isZero()) n--; return p.slice(0, n); }
 function rDeg(p) { const t = rTrim(p); return (t.length === 1 && t[0].isZero()) ? -1 : t.length - 1; }

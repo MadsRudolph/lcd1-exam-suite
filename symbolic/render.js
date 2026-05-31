@@ -35,13 +35,21 @@ function renderPoly(coeffs) {
     return out;
 }
 
+// A polynomial-in-s is "atomic" (needs no parens in a fraction) iff it is a single
+// term: exactly one non-zero s-power whose coefficient is a single monomial (e.g. K, 2K, 3s).
+function polyIsAtomic(coeffs) {
+    const nonzero = coeffs.filter(m => !m.isZero());
+    return nonzero.length === 1 && nonzero[0].terms.size === 1;
+}
+
 export function renderSymTF(tf) {
     const numText = renderPoly(tf.num);
     const denIsOne = tf.den.length === 1 && tf.den[0].isConstant() && tf.den[0].constantValue().isOne();
     const denText = renderPoly(tf.den);
+    const numForFrac = polyIsAtomic(tf.num) ? numText : `(${numText})`;
     return {
         toFormulaString() {
-            return denIsOne ? numText : `${numText} / (${denText})`;
+            return denIsOne ? numText : `${numForFrac} / (${denText})`;
         },
         toKaTeX() {
             return denIsOne ? numText : `\\frac{${numText}}{${denText}}`;
