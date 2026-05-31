@@ -112,4 +112,68 @@ export function solveKForSpec(G_str, spec) {
   return 0.5 * (lo + hi);
 }
 
+/**
+ * Given a parametric closed-loop TF in (s, K) and one known 2nd-order metric,
+ * return K plus the full metric table. Numeric replacement for the sympy version:
+ * the closed-loop denominator is affine in K, so den(K) = den0 + K*(den1 - den0)
+ * is recovered by parsing with K=0 and K=1; then a 1-D solve finds K.
+ *
+ * given_kind ∈ {Mp, zeta, omega_n, omega_d, t_p, t_s_2pct, K}.
+ */
+export function solveClosedLoop2ndOrder(closed_loop_str, given_kind, given_value) {
+  const den0 = parseTf(closed_loop_str.replace(/\bK_?[Pp]?\b/g, "0")).den;
+  const den1 = parseTf(closed_loop_str.replace(/\bK_?[Pp]?\b/g, "1")).den;
+  if (den0.length !== 3 || den1.length !== 3) {
+    throw new Error("solve_closed_loop_2nd_order requires a 2nd-order denominator");
+  }
+  const denOfK = (K) => den0.map((c, i) => c + K * (den1[i] - c));
+  const wnZeta = (K) => {
+    const [a2, a1, a0] = denOfK(K);
+    const wn = Math.sqrt(a0 / a2);
+    const zeta = a1 / a2 / (2 * wn);
+    return { wn, zeta };
+  };
+  const metric = (K) => {
+    const { wn, zeta } = wnZeta(K);
+    const wd = wn * Math.sqrt(Math.max(0, 1 - zeta ** 2));
+    switch (given_kind) {
+      case "Mp": return MpFromZeta(zeta);
+      case "zeta": return zeta;
+      case "omega_n": return wn;
+      case "omega_d": return wd;
+      case "t_p": return Math.PI / wd;
+      case "t_s_2pct": return 4 / (wn * zeta);
+      default: throw new Error(`unknown given_kind ${given_kind}`);
+    }
+  };
+
+  let K_val;
+  if (given_kind === "K") {
+    K_val = Number(given_value);
+  } else {
+    // Scan ascending K for a sign change in metric(K) - target, then bisect.
+    const target = given_kind === "Mp" ? Number(given_value) : Number(given_value);
+    const f = (K) => metric(K) - target;
+    const grid = [];
+    for (let e = -6; e <= 6; e += 0.02) grid.push(10 ** e);
+    let lo = null, hi = null, flo = f(grid[0]);
+    for (let i = 1; i < grid.length; i++) {
+      const fi = f(grid[i]);
+      if (Number.isFinite(flo) && Number.isFinite(fi) && flo * fi <= 0) { lo = grid[i - 1]; hi = grid[i]; break; }
+      flo = fi;
+    }
+    if (lo === null) throw new Error(`No positive K satisfies ${given_kind}=${given_value}`);
+    for (let i = 0; i < 200; i++) {
+      const mid = 0.5 * (lo + hi);
+      if (f(lo) * f(mid) <= 0) hi = mid; else lo = mid;
+    }
+    K_val = 0.5 * (lo + hi);
+  }
+
+  const { wn, zeta } = wnZeta(K_val);
+  const out = solve2ndOrder({ zeta, omega_n: wn });
+  out.K = K_val;
+  return out;
+}
+
 export { MpFromZeta, zetaFromMp };

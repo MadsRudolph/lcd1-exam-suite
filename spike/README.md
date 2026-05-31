@@ -53,7 +53,7 @@ test/      node:test parity suites (one per problem type) + cli smoke test
 
 ## Coverage vs the oracle
 
-**74 JS tests green; the Python oracle is 70/70 on the same machine.** Every solver
+**77 JS tests green; the Python oracle is 70/70 on the same machine.** Every solver
 family is ported and parity-verified. The only intentional gap is the symbolic DSL
 block-reducer (`p1_block_reduce.py`) — BDR's graphical reducer replaces it in the merged app.
 
