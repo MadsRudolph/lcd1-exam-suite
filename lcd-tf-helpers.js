@@ -57,18 +57,53 @@ export function toMatlabExpr(src) {
     .replace(/([A-Za-z_]\w*)\s*\(/g, "$1*(");    // s(…), a(…)  -> s*(…), a*(…)
 }
 
-const PLOT_CMD = {
-  Step: { comment: "Step response", cmd: "step(G);" },
-  Bode: { comment: "Bode magnitude and phase", cmd: "bode(G);" },
-  Nyquist: { comment: "Nyquist plot", cmd: "nyquist(G);" },
-  "Pole-Zero": { comment: "Pole-zero map", cmd: "pzmap(G);" },
+// Per-tab MATLAB that both draws the plot and reports the same quantities the
+// solver annotates (margins, crossovers, bandwidth, transient metrics, the
+// s-plane grid) — using MATLAB's own analysis commands so the snippet is
+// self-contained and recomputes everything from G.
+const PLOT_BLOCK = {
+  Step: [
+    "% Step response with transient metrics",
+    "step(G);",
+    "grid on;",
+    "% overshoot, peak time and settling time (matches the solver's read-outs)",
+    "S = stepinfo(G);",
+    "fprintf('Overshoot  = %.4g %%\\n', S.Overshoot);",
+    "fprintf('Peak time  = %.4g s\\n', S.PeakTime);",
+    "fprintf('Settling t = %.4g s (2%%)\\n', S.SettlingTime);",
+  ],
+  Bode: [
+    "% Bode plot drawn with gain/phase margins and crossover frequencies marked",
+    "margin(G);",
+    "grid on;",
+    "% numeric margins, crossovers and bandwidth",
+    "[Gm, Pm, Wpc, Wgc] = margin(G);",
+    "fprintf('GM = %.4g dB at w_pi = %.4g rad/s (phase crossover)\\n', 20*log10(Gm), Wpc);",
+    "fprintf('PM = %.4g deg at w_c  = %.4g rad/s (gain crossover)\\n', Pm, Wgc);",
+    "fprintf('Bandwidth  = %.4g rad/s\\n', bandwidth(G));",
+  ],
+  Nyquist: [
+    "% Nyquist plot; the -1 point sets the gain/phase margins",
+    "nyquist(G);",
+    "grid on;",
+    "[Gm, Pm] = margin(G);",
+    "fprintf('GM = %.4g dB, PM = %.4g deg\\n', 20*log10(Gm), Pm);",
+  ],
+  "Pole-Zero": [
+    "% Pole-zero map with the damping / natural-frequency grid",
+    "pzmap(G);",
+    "sgrid;",
+    "% poles (stable when every real part is < 0) and zeros",
+    "disp('poles ='); disp(pole(G));",
+    "disp('zeros ='); disp(zero(G));",
+  ],
 };
 
-// Commented MATLAB that rebuilds G(s) and draws the currently shown plot.
-// Symbolic parameters get a commented assignment block so the snippet runs
-// once the student fills in real values.
+// Commented MATLAB that rebuilds G(s) and reproduces the currently shown plot
+// together with the quantities the solver displays. Symbolic parameters get a
+// commented assignment block so the snippet runs once real values are filled in.
 export function matlabForPlot(src, tab) {
-  const plot = PLOT_CMD[tab] || PLOT_CMD.Bode;
+  const block = PLOT_BLOCK[tab] || PLOT_BLOCK.Bode;
   const matlabSrc = toMatlabExpr(src);
   const syms = tfSymbols(matlabSrc);
   const lines = ["% Transfer function G(s)"];
@@ -76,6 +111,6 @@ export function matlabForPlot(src, tab) {
     lines.push("% set your parameter values");
     for (const sym of syms) lines.push(`${sym} = 1;`);
   }
-  lines.push("s = tf('s');", `G = ${matlabSrc};`, "", `% ${plot.comment}`, plot.cmd, "grid on;");
+  lines.push("s = tf('s');", `G = ${matlabSrc};`, "", ...block);
   return lines.join("\n");
 }

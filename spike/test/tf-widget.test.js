@@ -31,19 +31,30 @@ test("tfSymbols lists parameters but never s", () => {
   assert.deepEqual(tfSymbols("12/((s+2)*(s+3))"), []);
 });
 
-test("matlabForPlot builds a numeric Bode snippet with the right command", () => {
+test("matlabForPlot builds a numeric Bode snippet with margins and crossovers", () => {
   const code = matlabForPlot("12/((s+2)*(s+3))", "Bode");
   assert.match(code, /s = tf\('s'\);/);
   assert.match(code, /G = 12\/\(\(s\+2\)\*\(s\+3\)\);/);
-  assert.match(code, /bode\(G\);/);
+  assert.match(code, /margin\(G\);/);          // Bode drawn with GM/PM + crossovers
+  assert.match(code, /\[Gm, Pm, Wpc, Wgc\] = margin\(G\);/);
+  assert.match(code, /bandwidth\(G\)/);
   assert.match(code, /grid on;/);
 });
 
-test("matlabForPlot converts ** to ^ and maps each tab to its command", () => {
+test("matlabForPlot converts ** to ^ and maps each tab to its analysis block", () => {
   assert.match(matlabForPlot("1/(s**2+2*s+10)", "Step"), /G = 1\/\(s\^2\+2\*s\+10\);/);
-  assert.match(matlabForPlot("1/s", "Step"), /step\(G\);/);
-  assert.match(matlabForPlot("1/s", "Nyquist"), /nyquist\(G\);/);
-  assert.match(matlabForPlot("1/s", "Pole-Zero"), /pzmap\(G\);/);
+  // Step → response + transient metrics
+  const step = matlabForPlot("1/s", "Step");
+  assert.match(step, /step\(G\);/);
+  assert.match(step, /stepinfo\(G\)/);
+  // Nyquist → plot + margins
+  const nyq = matlabForPlot("1/s", "Nyquist");
+  assert.match(nyq, /nyquist\(G\);/);
+  assert.match(nyq, /margin\(G\)/);
+  // Pole-Zero → pzmap with the s-plane grid
+  const pz = matlabForPlot("1/s", "Pole-Zero");
+  assert.match(pz, /pzmap\(G\);/);
+  assert.match(pz, /sgrid;/);
 });
 
 test("matlabForPlot inserts explicit * where the app allows juxtaposition (MATLAB needs it)", () => {
