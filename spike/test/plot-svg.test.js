@@ -48,6 +48,22 @@ test("plots carry a legend explaining the dashed crossover lines", () => {
   assert.ok(/poles/.test(poleZeroPlot(pz)) && /zeros/.test(poleZeroPlot(pz)), "pole-zero legend");
 });
 
+test("linePlot draws a shaded region clamped to the plot box", () => {
+  const svg = linePlot({
+    series: [{ x: [-3, -1, 1], y: [0, 1, 2], color: "#c00" }],
+    xScale: "linear", regions: [{ x0: -Infinity, x1: 0, color: "rgba(16,185,129,0.10)" }],
+    width: 320, height: 280,
+  });
+  assert.ok(/<rect[^>]*fill="rgba\(16,185,129,0\.10\)"/.test(svg), "region rect rendered");
+});
+
+test("poleZeroPlot shows the s-plane stability region and jω-axis boundary", () => {
+  const svg = poleZeroPlot(pz);
+  assert.ok(/stable region/.test(svg), "stable LHP legend");
+  assert.ok(/jω axis/.test(svg), "imaginary-axis boundary legend");
+  assert.ok(/<rect[^>]*fill="rgba\(16,185,129,0\.10\)"/.test(svg), "LHP shaded");
+});
+
 test("nyquistPlot marks the -1 point and shows a verdict", () => {
   const svg = nyquistPlot(nyq, { stable: true, encirclements: 0 });
   assert.ok(svg.includes("<svg"));
