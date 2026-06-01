@@ -6,6 +6,7 @@
 
 import { BlockDiagramCanvas } from './canvas.js';
 import { solveBlockDiagram, transferFunction, collectEndpoints, loopGain } from './solver.js';
+import { analyzeDiagram, complexKaTeX, fmtNum } from './analysis.js';
 import { TransferFunction } from './math-engine.js';
 import { analyzeImageTopology } from './vision-analyzer.js';
 import { TEMPLATES, TEMPLATE_GROUPS } from './templates.js';
@@ -31,7 +32,7 @@ document.addEventListener('DOMContentLoaded', () => {
     const propValLabel = document.getElementById('prop-value-label');
     
     const tfOutput = document.getElementById('tf-output');
-    const stepsOutput = document.getElementById('steps-output');
+    const analysisOutput = document.getElementById('analysis-output');
     const sourceSelect = document.getElementById('source-select');
     const sinkSelect = document.getElementById('sink-select');
 
@@ -106,6 +107,7 @@ document.addEventListener('DOMContentLoaded', () => {
                     lastSolutionResult = result;
                     currentTfLabel = 'L(s)';
                     renderMathSolution(result, 'L(s)');
+                    renderAnalysis(analyzeDiagram(canvas.nodes, canvas.connections));
                     if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
                     if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
                 } catch (e) {
@@ -223,6 +225,7 @@ document.addEventListener('DOMContentLoaded', () => {
             }
             lastSolutionResult = result;
             renderMathSolution(result, currentTfLabel);
+            renderAnalysis(analyzeDiagram(canvas.nodes, canvas.connections));
             if (copyActionsContainer) copyActionsContainer.style.display = 'flex';
             if (window.LCDBridge) window.LCDBridge.onSolved(result, canvas);
         } catch (e) {
@@ -231,7 +234,7 @@ document.addEventListener('DOMContentLoaded', () => {
             if (window.LCDBridge) window.LCDBridge.onSolveFailed();
             if (copyActionsContainer) copyActionsContainer.style.display = 'none';
             tfOutput.innerHTML = `<span style="color: var(--accent-red); font-size: 13px;">Error: ${e.message}</span>`;
-            stepsOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic;">Could not solve the system of equations. Make sure your nodes are fully connected from the source to the sink.</div>`;
+            analysisOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic;">Could not solve the system. Make sure your nodes are fully connected from the source to the sink.</div>`;
         }
     }
 
@@ -239,7 +242,7 @@ document.addEventListener('DOMContentLoaded', () => {
         lastSolutionResult = null;
         if (copyActionsContainer) copyActionsContainer.style.display = 'none';
         tfOutput.innerHTML = `<span style="color: var(--text-secondary); font-size: 13px;">Diagram solved TF will appear here.</span>`;
-        stepsOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic; text-align: center; margin-top: 40px;">Connect your input R to output Y and blocks, then solve to view algebraic steps.</div>`;
+        analysisOutput.innerHTML = `<div style="color: var(--text-secondary); font-size: 12px; font-style: italic; text-align: center; margin-top: 40px;">Connect input R to output Y, then solve to see open-loop L(s), closed-loop Y/R, disturbance response and poles.</div>`;
         updateDiagramStats();
     }
 
@@ -272,76 +275,120 @@ document.addEventListener('DOMContentLoaded', () => {
         if (!window.katex) {
             // Safe fallback if CDN fails
             tfOutput.textContent = `${label} = ${result.finalTransferFunction.toFormulaString()}`;
-            stepsOutput.innerHTML = result.initialEquations.map((eq, idx) => `
-                <div class="step-item initial">
-                    <div class="step-title">Relation ${idx + 1}</div>
-                    <div class="step-formula">${eq}</div>
-                </div>
-            `).join('') + result.steps.map(step => `
-                <div class="step-item ${step.type || ''}">
-                    <div class="step-title">${step.title}</div>
-                    <div class="step-formula">${step.latex}</div>
-                </div>
-            `).join('');
             return;
         }
 
-        // Render Final Transfer Function
+        // Render the headline transfer function for the selected source/sink.
         const latexStr = `${lhsLatex(label)} = ${result.finalTransferFunction.toKaTeX()}`;
         tfOutput.innerHTML = '';
         const tfContainer = document.createElement('div');
         katex.render(latexStr, tfContainer, { displayMode: true, throwOnError: false });
         tfOutput.appendChild(tfContainer);
+    }
 
-        // Render steps
-        stepsOutput.innerHTML = '';
-        
-        // Render initial system equations
-        const initTitle = document.createElement('h4');
-        initTitle.textContent = "Initial Loop Relations";
-        initTitle.style.cssText = "font-size: 12px; margin-bottom: 8px; color: var(--accent-blue);";
-        stepsOutput.appendChild(initTitle);
+    // Render a labelled formula row (KaTeX with a safe text fallback).
+    function analysisRow(label, latex) {
+        const item = document.createElement('div');
+        item.className = 'analysis-item';
 
-        result.initialEquations.forEach((eq, idx) => {
-            const item = document.createElement('div');
-            item.className = 'step-item initial';
-            
-            const titleEl = document.createElement('div');
-            titleEl.className = 'step-title';
-            titleEl.textContent = `Relation ${idx + 1}`;
-            item.appendChild(titleEl);
+        const titleEl = document.createElement('div');
+        titleEl.className = 'analysis-label';
+        titleEl.textContent = label;
+        item.appendChild(titleEl);
 
-            const formulaEl = document.createElement('div');
-            formulaEl.className = 'step-formula';
-            katex.render(eq, formulaEl, { displayMode: false, throwOnError: false });
-            item.appendChild(formulaEl);
+        const formulaEl = document.createElement('div');
+        formulaEl.className = 'analysis-formula';
+        if (window.katex) {
+            katex.render(latex, formulaEl, { displayMode: false, throwOnError: false });
+        } else {
+            formulaEl.textContent = latex;
+        }
+        item.appendChild(formulaEl);
+        return item;
+    }
 
-            stepsOutput.appendChild(item);
+    function analysisNote(label, text, color) {
+        const item = document.createElement('div');
+        item.className = 'analysis-item';
+        const titleEl = document.createElement('div');
+        titleEl.className = 'analysis-label';
+        titleEl.textContent = label;
+        item.appendChild(titleEl);
+        const txt = document.createElement('div');
+        txt.className = 'analysis-note';
+        txt.textContent = text;
+        if (color) txt.style.color = color;
+        item.appendChild(txt);
+        return item;
+    }
+
+    // Populate the right-panel System Analysis dashboard.
+    function renderAnalysis(a) {
+        analysisOutput.innerHTML = '';
+
+        // Open loop L(s)
+        if (a.openLoop && a.openLoop.ok) {
+            analysisOutput.appendChild(analysisRow('Open loop  L(s)', `L(s) = ${a.openLoop.katex}`));
+        } else if (a.openLoop) {
+            analysisOutput.appendChild(analysisNote('Open loop  L(s)', a.openLoop.error, 'var(--text-secondary)'));
+        }
+
+        // Closed loop Y/R
+        if (a.closedLoop && a.closedLoop.ok) {
+            analysisOutput.appendChild(analysisRow('Closed loop  Y/R', `\\frac{Y(s)}{R(s)} = ${a.closedLoop.katex}`));
+        } else if (a.closedLoop) {
+            analysisOutput.appendChild(analysisNote('Closed loop  Y/R', a.closedLoop.error, 'var(--accent-red)'));
+        }
+
+        // Disturbance responses Y/D
+        a.disturbances.forEach(d => {
+            const [, den] = d.label.split('/');
+            if (d.ok) {
+                analysisOutput.appendChild(analysisRow(`Disturbance  ${d.label}`, `\\frac{Y(s)}{${den}(s)} = ${d.katex}`));
+            } else {
+                analysisOutput.appendChild(analysisNote(`Disturbance  ${d.label}`, d.error, 'var(--accent-red)'));
+            }
         });
 
-        // Render elimination steps
-        if (result.steps && result.steps.length > 0) {
-            const elimTitle = document.createElement('h4');
-            elimTitle.textContent = "Reduction Steps";
-            elimTitle.style.cssText = "font-size: 12px; margin-top: 16px; margin-bottom: 8px; color: var(--accent-purple);";
-            stepsOutput.appendChild(elimTitle);
+        // Characteristic equation, poles, stability
+        const c = a.char;
+        if (c && c.numeric) {
+            analysisOutput.appendChild(analysisRow('Characteristic equation', c.characteristic));
 
-            result.steps.forEach(step => {
-                const item = document.createElement('div');
-                item.className = `step-item ${step.type || ''}`;
-                
-                const titleEl = document.createElement('div');
-                titleEl.className = 'step-title';
-                titleEl.textContent = step.title;
-                item.appendChild(titleEl);
+            if (c.poles && c.poles.length) {
+                const polesLatex = c.poles.map(p => complexKaTeX(p)).join(',\\ \\ ');
+                analysisOutput.appendChild(analysisRow('Poles', polesLatex));
+            }
+            if (c.zeros && c.zeros.length) {
+                const zerosLatex = c.zeros.map(z => complexKaTeX(z)).join(',\\ \\ ');
+                analysisOutput.appendChild(analysisRow('Zeros', zerosLatex));
+            }
 
-                const formulaEl = document.createElement('div');
-                formulaEl.className = 'step-formula';
-                katex.render(step.latex, formulaEl, { displayMode: false, throwOnError: false });
-                item.appendChild(formulaEl);
+            // Stability verdict badge
+            const stabItem = document.createElement('div');
+            stabItem.className = 'analysis-item';
+            const stabLabel = document.createElement('div');
+            stabLabel.className = 'analysis-label';
+            stabLabel.textContent = 'Stability';
+            stabItem.appendChild(stabLabel);
+            const badge = document.createElement('span');
+            badge.className = 'stability-badge ' + (c.stable ? 'stable' : 'unstable');
+            badge.textContent = c.stable ? '● Stable' : '● Unstable';
+            stabItem.appendChild(badge);
+            analysisOutput.appendChild(stabItem);
 
-                stepsOutput.appendChild(item);
-            });
+            // Compact metrics row
+            const dc = c.dcGain === Infinity ? '∞' : fmtNum(c.dcGain);
+            const bits = [`DC gain T(0) = ${dc}`, `Order = ${c.order}`];
+            if (c.type !== null && c.type !== undefined) bits.push(`Type = ${c.type}`);
+            const metrics = document.createElement('div');
+            metrics.className = 'analysis-metrics';
+            metrics.textContent = bits.join('   ·   ');
+            analysisOutput.appendChild(metrics);
+        } else if (a.closedLoop && a.closedLoop.ok) {
+            analysisOutput.appendChild(analysisNote('Poles & stability',
+                'Symbolic diagram — assign numeric values to blocks for pole/stability analysis.',
+                'var(--text-secondary)'));
         }
     }
 
@@ -352,6 +399,52 @@ document.addEventListener('DOMContentLoaded', () => {
     const examplesList = document.getElementById('examples-list');
     const myDiagramsList = document.getElementById('my-diagrams-list');
     const saveDiagramBtn = document.getElementById('save-diagram-btn');
+
+    // In-app replacement for window.prompt (unsupported in Electron). Resolves to
+    // the trimmed string on confirm, or null on cancel.
+    const promptModal = document.getElementById('prompt-modal');
+    const promptTitle = document.getElementById('prompt-title');
+    const promptLabel = document.getElementById('prompt-label');
+    const promptInput = document.getElementById('prompt-input');
+    const promptOk = document.getElementById('prompt-ok-btn');
+    const promptCancel = document.getElementById('prompt-cancel-btn');
+    const promptCancelX = document.getElementById('prompt-cancel-x');
+
+    function askText({ title = 'Name', label = 'Enter a name', value = '', okText = 'Save' } = {}) {
+        return new Promise((resolve) => {
+            if (!promptModal) { resolve(null); return; }
+            promptTitle.textContent = title;
+            promptLabel.textContent = label;
+            promptInput.value = value;
+            promptOk.textContent = okText;
+            promptModal.style.display = 'flex';
+            promptInput.focus();
+            promptInput.select();
+
+            const cleanup = () => {
+                promptModal.style.display = 'none';
+                promptOk.removeEventListener('click', onOk);
+                promptCancel.removeEventListener('click', onCancel);
+                promptCancelX.removeEventListener('click', onCancel);
+                promptInput.removeEventListener('keydown', onKey);
+                promptModal.removeEventListener('mousedown', onBackdrop);
+            };
+            const finish = (result) => { cleanup(); resolve(result); };
+            const onOk = () => { const v = promptInput.value.trim(); finish(v || null); };
+            const onCancel = () => finish(null);
+            const onKey = (e) => {
+                if (e.key === 'Enter') { e.preventDefault(); onOk(); }
+                else if (e.key === 'Escape') { e.preventDefault(); onCancel(); }
+            };
+            const onBackdrop = (e) => { if (e.target === promptModal) onCancel(); };
+
+            promptOk.addEventListener('click', onOk);
+            promptCancel.addEventListener('click', onCancel);
+            promptCancelX.addEventListener('click', onCancel);
+            promptInput.addEventListener('keydown', onKey);
+            promptModal.addEventListener('mousedown', onBackdrop);
+        });
+    }
 
     function loadDiagramState(state) {
         clearMathDisplays();
@@ -410,10 +503,10 @@ document.addEventListener('DOMContentLoaded', () => {
             ren.className = 'saved-action';
             ren.title = 'Rename';
             ren.textContent = '✎';
-            ren.addEventListener('click', (ev) => {
+            ren.addEventListener('click', async (ev) => {
                 ev.stopPropagation();
-                const name = window.prompt('Rename diagram:', d.name);
-                if (name && name.trim()) { diagramStore.rename(d.id, name); renderMyDiagrams(); }
+                const name = await askText({ title: 'Rename diagram', label: 'Diagram name', value: d.name, okText: 'Rename' });
+                if (name) { diagramStore.rename(d.id, name); renderMyDiagrams(); }
             });
             row.appendChild(ren);
 
@@ -432,10 +525,10 @@ document.addEventListener('DOMContentLoaded', () => {
     }
 
     if (saveDiagramBtn) {
-        saveDiagramBtn.addEventListener('click', () => {
+        saveDiagramBtn.addEventListener('click', async () => {
             if (!canvas.nodes.length) { window.alert('Nothing to save — the canvas is empty.'); return; }
-            const name = window.prompt('Save diagram as:', 'My diagram');
-            if (!name || !name.trim()) return;
+            const name = await askText({ title: 'Save diagram', label: 'Diagram name', value: 'My diagram', okText: 'Save' });
+            if (!name) return;
             diagramStore.save(name, canvas.exportState());
             renderMyDiagrams();
         });

@@ -197,8 +197,8 @@
         <!-- RIGHT MATHEMATICAL REDUCTION STEPS -->
         <aside class="right-panel">
             <div class="panel-header">
-                <h1>Symbolic Solve</h1>
-                <p>Algebraic Exact Rational reduction</p>
+                <h1>System Analysis</h1>
+                <p>Open-loop, closed-loop, disturbance &amp; stability</p>
             </div>
 
             <div class="section-card">
@@ -221,11 +221,11 @@
             </div>
 
             <div class="section-card" style="flex-grow: 1; display: flex; flex-direction: column;">
-                <h3>Step-by-Step Node Algebra</h3>
-                <div class="steps-list" id="steps-output" style="flex-grow: 1;">
-                    <!-- Steps will render here -->
+                <h3>Loop &amp; Stability</h3>
+                <div class="analysis-list" id="analysis-output" style="flex-grow: 1;">
+                    <!-- Open-loop / closed-loop / disturbance / poles render here -->
                     <div style="color: var(--text-secondary); font-size: 12px; font-style: italic; text-align: center; margin-top: 40px;">
-                        Connect your input R to output Y and blocks, then solve to view algebraic steps.
+                        Connect input R to output Y, then solve to see open-loop L(s), closed-loop Y/R, disturbance response and poles.
                     </div>
                 </div>
             </div>
@@ -279,6 +279,24 @@
                     Trace as Canvas Blueprint (Recommended)
                 </button>
                 <button class="btn-action green" id="process-vision-btn" disabled>Auto-Generate (Experimental)</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- In-app text prompt (Electron has no window.prompt) -->
+    <div id="prompt-modal" class="modal-overlay" style="display: none;">
+        <div class="modal-card" style="max-width: 420px;">
+            <div class="modal-header">
+                <h3 id="prompt-title">Name</h3>
+                <button class="btn-close" id="prompt-cancel-x">&times;</button>
+            </div>
+            <div class="modal-body">
+                <label id="prompt-label" for="prompt-input" style="display:block; font-size:11px; font-weight:600; color:var(--text-secondary); margin-bottom:8px;">Enter a name</label>
+                <input type="text" id="prompt-input" style="width:100%; box-sizing:border-box; background:#0f172a; color:var(--text-primary); border:1px solid var(--border-color); border-radius:6px; padding:10px 12px; font-size:14px;" />
+            </div>
+            <div class="modal-footer">
+                <button class="btn-action" id="prompt-cancel-btn">Cancel</button>
+                <button class="btn-action blue" id="prompt-ok-btn">Save</button>
             </div>
         </div>
     </div>

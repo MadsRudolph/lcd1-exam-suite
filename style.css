@@ -442,6 +442,85 @@ h2 {
     background: rgba(255, 255, 255, 0.15);
 }
 
+/* System Analysis dashboard (right panel) */
+.analysis-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    max-height: calc(100vh - 280px);
+    overflow-y: auto;
+    padding-right: 4px;
+}
+
+.analysis-item {
+    background: rgba(15, 23, 42, 0.4);
+    border-left: 3px solid var(--accent-blue);
+    padding: 10px 14px;
+    border-radius: 0 6px 6px 0;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    transition: background 0.2s ease;
+}
+
+.analysis-item:hover {
+    background: rgba(15, 23, 42, 0.6);
+}
+
+.analysis-label {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: var(--accent-blue);
+}
+
+.analysis-formula {
+    overflow-x: auto;
+    white-space: nowrap;
+    padding: 2px 0;
+    font-size: 14px;
+    color: var(--text-primary);
+    scrollbar-width: thin;
+}
+
+.analysis-formula::-webkit-scrollbar { height: 4px; }
+.analysis-formula::-webkit-scrollbar-thumb {
+    background: rgba(255, 255, 255, 0.08);
+    border-radius: 2px;
+}
+
+.analysis-note {
+    font-size: 12px;
+    line-height: 1.45;
+    color: var(--text-secondary);
+}
+
+.analysis-metrics {
+    font-size: 11.5px;
+    color: var(--text-secondary);
+    letter-spacing: 0.2px;
+    padding: 2px 2px 0;
+}
+
+.stability-badge {
+    align-self: flex-start;
+    font-size: 12px;
+    font-weight: 600;
+    padding: 3px 10px;
+    border-radius: 999px;
+}
+.stability-badge.stable {
+    color: var(--accent-green);
+    background: rgba(16, 185, 129, 0.12);
+    border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.stability-badge.unstable {
+    color: var(--accent-red);
+    background: rgba(239, 68, 68, 0.12);
+    border: 1px solid rgba(239, 68, 68, 0.35);
+}
+
 /* Custom Scrollbar for sleek UI */
 ::-webkit-scrollbar {
     width: 6px;
