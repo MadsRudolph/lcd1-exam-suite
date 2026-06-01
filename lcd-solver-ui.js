@@ -185,15 +185,29 @@ function showGoal(form, body, src) {
 function renderSymbolicBoard(src) {
   const a = analyzeSymbolic(src);
   if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span>`; return; }
-  state.echo.innerHTML = `<span style="color:#6ee7b7">symbolic input — showing closed-loop &amp; steady-state in symbols</span>`;
-  const grid = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
-  grid.append(
-    card("closed-loop T = L/(1+L)", a.closedLoop || "—"),
+  state.echo.textContent = a.interpreted ? `interpreted as  G(s) = ${a.interpreted}` : "symbolic input";
+
+  const sysGrid = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
+  sysGrid.append(
+    card("y(0⁺) (initial value)", a.initialValue ?? "—"),
+    card("y(∞) = G(0) (final value)", a.dcGain ?? "—"),
     card("type / order", `${a.type ?? "—"} / ${a.order ?? "—"}`),
-    card("K₀ = lim sᴺ·L", a.K0 || "—"),
-    card("ess step / ramp", `${a.essStep ?? "—"} / ${a.essRamp ?? "—"}`),
   );
-  state.board.append(sectionLabel("Symbolic read-outs"), grid);
+  state.board.append(sectionLabel("As a system G(s)"), sysGrid);
+
+  if (a.loopHeavy) {
+    state.board.append(sectionLabel("As a loop gain L(s)"));
+    state.board.append(el("div", { style: `color:${SUB};font:12px 'Inter';font-style:italic;` },
+      "Closed-loop and ess are skipped here — too many parameters to simplify instantly. Drop one of the symbols (or use the dedicated Symbolic loop analysis tool) if you need them."));
+  } else {
+    const loopGrid = el("div", { style: "display:grid;grid-template-columns:repeat(2,1fr);gap:8px;" });
+    loopGrid.append(
+      card("closed-loop T = L/(1+L)", a.closedLoop || "—"),
+      card("K₀ = lim sᴺ·L", a.K0 || "—"),
+      card("ess step / ramp", `${a.essStep ?? "—"} / ${a.essRamp ?? "—"}`),
+    );
+    state.board.append(sectionLabel("As a loop gain L(s)"), loopGrid);
+  }
 
   state.board.append(sectionLabel("Check the exam's options · paste one per line"));
   const ta = el("textarea", { rows: "4", placeholder: "K/(s^2+a*s+K)\n...", style:
@@ -239,7 +253,10 @@ function init() {
 
   // system input — one box for everything
   const sysBox = el("textarea", { id: "lcd-sys", rows: "1", placeholder: "G(s) = e.g.  12/((s+2)*(s+3))   or   K/(s*(s+a))", style:
-    `width:100%;resize:none;background:rgba(15,23,42,0.6);color:${TXT};border:1px solid #3b82f6;border-radius:10px;padding:12px 14px;font:15px 'JetBrains Mono',monospace;` });
+    `width:100%;box-sizing:border-box;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;` +
+    `background:rgba(15,23,42,0.6);color:${TXT};border:1px solid #3b82f6;border-radius:10px;padding:12px 14px;font:15px/1.4 'JetBrains Mono',monospace;` });
+  // Grow the box to fit the whole expression instead of scrolling inside one row.
+  const growSys = () => { sysBox.style.height = "auto"; sysBox.style.height = `${sysBox.scrollHeight}px`; };
   const echo = el("div", { id: "lcd-echo", style: `margin-top:7px;font:12px 'JetBrains Mono';color:#6ee7b7;min-height:16px;` });
   left.append(el("label", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "System — one box for everything"));
   left.append(sysBox, echo);
@@ -258,8 +275,8 @@ function init() {
   calcWrap.append(calcChips, calcBody);
   left.append(calcWrap);
 
-  state.sysBox = sysBox; state.echo = echo; state.board = board;
-  sysBox.addEventListener("input", () => analyzeAndRender());
+  state.sysBox = sysBox; state.echo = echo; state.board = board; state.growSys = growSys;
+  sysBox.addEventListener("input", () => { growSys(); analyzeAndRender(); });
   state.analyzeAndRender = analyzeAndRender;
 
   panel.append(left);
@@ -285,9 +302,9 @@ function init() {
     `display:none;flex-direction:column;gap:8px;background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.3);border-radius:10px;padding:12px;` });
   left.prepend(chooser);
   state.chooser = chooser;
-  state.setG = (fn, tf) => { state.sysBox.value = tf; analyzeAndRender(); };
-  state.setRef = (tf) => { state.sysBox.value = tf; analyzeAndRender(); };
-  state.setL = (tf) => { state.sysBox.value = tf; analyzeAndRender(); };
+  state.setG = (fn, tf) => { state.sysBox.value = tf; state.growSys(); analyzeAndRender(); };
+  state.setRef = (tf) => { state.sysBox.value = tf; state.growSys(); analyzeAndRender(); };
+  state.setL = (tf) => { state.sysBox.value = tf; state.growSys(); analyzeAndRender(); };
 
   window.LCDBridge = {
     onSolved: (result, canvas) => mountUseButton(result, canvas),
