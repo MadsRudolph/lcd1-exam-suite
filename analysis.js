@@ -1,13 +1,17 @@
 /**
  * analysis.js
  * System-level analysis for a drawn block diagram: open-loop L(s), closed-loop
- * T(s)=Y/R, disturbance response Y/D, plus characteristic equation, poles,
- * zeros and a stability verdict. Built on top of the existing solver so it
- * reuses the exact-rational reduction and the loop-break machinery.
+ * T(s)=Y/R, disturbance response Y/D, steady-state errors, plus the
+ * characteristic equation, poles, zeros and a stability verdict. Built on top of
+ * the existing solver so it reuses the exact-rational reduction and the
+ * loop-break machinery.
  */
 
 import { transferFunction, solveBlockDiagram, loopGain } from './solver.js';
 import { roots } from './spike/numeric/roots.js';
+import { SymTF } from './symbolic/symtf.js';
+import { RatFunc } from './symbolic/ratfunc.js';
+import { renderSymTF } from './symbolic/render.js';
 
 const SOURCE_TYPES = ['input', 'disturbance'];
 
@@ -149,6 +153,141 @@ function characterise(tf, openTf) {
     return { numeric: true, poles, zeros, stable, dcGain, order, type, characteristic };
 }
 
+// System type and order for a SYMBOLIC diagram, read off the SymTF denominators
+// (coefficient arrays indexed by power of s). Type = number of open-loop
+// integrators = multiplicity of the s=0 pole in L(s); order = degree in s of the
+// closed-loop characteristic polynomial. Returns null when no open loop exists.
+function symbolicTypeOrder(openSymtf, closedSymtf) {
+    if (!openSymtf || !openSymtf.den) return null;
+    const lowestPow = (arr) => { for (let i = 0; i < arr.length; i++) if (!arr[i].isZero()) return i; return 0; };
+    const type = lowestPow(openSymtf.den);
+    const orderSrc = (closedSymtf && closedSymtf.den) ? closedSymtf.den : openSymtf.den;
+    const order = orderSrc.length - 1;
+    return { type, order };
+}
+
+// -------------------------------------------------------------------------
+// STEADY-STATE ERROR
+// -------------------------------------------------------------------------
+// The error signal e(s) is the output of the comparator the reference feeds:
+// e = r - (feedback). Solving the diagram from a source S straight to that node
+// gives the error transfer function E/S. The steady-state error to an input
+// S(s)=1/s^n is then, by the final-value theorem,
+//   e_ss = lim_{s->0} s·(E/S)·(1/s^n) = lim_{s->0} (E/S)/s^(n-1).
+// This covers reference step/ramp/parabola (S=R) and disturbance step (S=D),
+// in the literal parameters for symbolic diagrams.
+
+// The summing junction the reference enters — the comparator producing e(s).
+// Prefer a sum directly wired from the reference; else the nearest sum on the
+// forward path.
+function referenceComparator(nodes, connections, inputNode) {
+    const byId = (id) => nodes.find(n => n.id === id);
+    const direct = connections
+        .filter(c => c.fromNode === inputNode.id)
+        .map(c => byId(c.toNode))
+        .find(n => n && n.type === 'sum');
+    if (direct) return direct;
+
+    // Breadth-first to the first sum reachable from the reference.
+    const seen = new Set([inputNode.id]);
+    let frontier = [inputNode.id];
+    while (frontier.length) {
+        const next = [];
+        for (const id of frontier) {
+            for (const c of connections.filter(c => c.fromNode === id)) {
+                if (seen.has(c.toNode)) continue;
+                const n = byId(c.toNode);
+                if (n && n.type === 'sum') return n;
+                seen.add(c.toNode);
+                next.push(c.toNode);
+            }
+        }
+        frontier = next;
+    }
+    return null;
+}
+
+// Index of the lowest power of s with a non-zero coefficient, or -1 if all zero.
+function lowestPowerSym(coeffs) {
+    for (let i = 0; i < coeffs.length; i++) if (!coeffs[i].isZero()) return i;
+    return -1;
+}
+function lowestPowerNum(coeffs) {
+    for (let i = 0; i < coeffs.length; i++) if (Math.abs(coeffs[i]) > 1e-9) return i;
+    return -1;
+}
+
+// lim_{s->0} F(s)/s^m for the error TF inside `result` (symbolic or numeric).
+// Returns { type:'zero'|'finite'|'infinite', katex, formula }.
+function essLimit(result, m) {
+    // Symbolic path: SymTF with MPoly-coefficient arrays (index = power of s).
+    if (result.symtf) {
+        const F = result.symtf;
+        const pN = lowestPowerSym(F.num);
+        if (pN === -1) return { type: 'zero', katex: '0', formula: '0' };
+        const pD = lowestPowerSym(F.den);
+        const order = pN - m - pD;
+        if (order > 0) return { type: 'zero', katex: '0', formula: '0' };
+        if (order < 0) return { type: 'infinite', katex: '\\infty', formula: 'inf' };
+        const r = new RatFunc(F.num[pN], F.den[pD]);
+        const rendered = renderSymTF(new SymTF([r.num], [r.den]));
+        return { type: 'finite', katex: rendered.toKaTeX(), formula: rendered.toFormulaString() };
+    }
+    // Numeric path: TransferFunction with number-coefficient polynomials.
+    if (result.tf) {
+        const F = result.tf;
+        const pN = lowestPowerNum(F.num.coeffs);
+        if (pN === -1) return { type: 'zero', katex: '0', formula: '0' };
+        const pD = lowestPowerNum(F.den.coeffs);
+        const order = pN - m - pD;
+        if (order > 0) return { type: 'zero', katex: '0', formula: '0' };
+        if (order < 0) return { type: 'infinite', katex: '\\infty', formula: 'inf' };
+        const v = fmtNum(F.num.coeffs[pN] / F.den.coeffs[pD]);
+        return { type: 'finite', katex: v, formula: v };
+    }
+    return { type: 'unknown', katex: '?', formula: '?' };
+}
+
+// Steady-state errors for the reference (step/ramp/parabola) and a unit-step on
+// every wired disturbance. Returns { ok:false, reason } when the error node
+// can't be identified.
+function computeEss(nodes, connections) {
+    const inputNode = nodes.find(n => n.type === 'input');
+    if (!inputNode) return { ok: false, reason: 'Add a reference input R to compute steady-state error.' };
+
+    const comparator = referenceComparator(nodes, connections, inputNode);
+    if (!comparator) {
+        return { ok: false, reason: 'No summing junction on the reference path — steady-state error is undefined.' };
+    }
+
+    const out = { ok: true, errorLabel: 'e', reference: null, disturbances: [] };
+
+    try {
+        const ER = transferFunction(nodes, connections, inputNode.id, comparator.id);
+        out.reference = {
+            step: essLimit(ER, 0),
+            ramp: essLimit(ER, 1),
+            parabola: essLimit(ER, 2),
+        };
+    } catch (e) {
+        return { ok: false, reason: e.message };
+    }
+
+    const wired = new Set(connections.map(c => c.fromNode));
+    for (const d of nodes.filter(n => n.type === 'disturbance')) {
+        if (!wired.has(d.id)) continue;
+        const label = d.label || 'D';
+        try {
+            const ED = transferFunction(nodes, connections, d.id, comparator.id);
+            out.disturbances.push({ label, step: essLimit(ED, 0) });
+        } catch (e) {
+            out.disturbances.push({ label, step: { type: 'error', katex: e.message, formula: e.message } });
+        }
+    }
+
+    return out;
+}
+
 // Full analysis of the current diagram. Never throws — each section degrades
 // to { ok:false, error } so the panel can render whatever is computable.
 export function analyzeDiagram(nodes, connections) {
@@ -202,6 +341,17 @@ export function analyzeDiagram(nodes, connections) {
     const clTf = out.closedLoop && out.closedLoop.ok ? out.closedLoop.tf : null;
     const olTf = out.openLoop && out.openLoop.ok ? out.openLoop.tf : null;
     out.char = characterise(clTf, olTf);
+
+    // Type and order also for symbolic diagrams (read off the SymTF denominators).
+    if (!out.char.numeric) {
+        const olS = out.openLoop && out.openLoop.ok ? out.openLoop.symtf : null;
+        const clS = out.closedLoop && out.closedLoop.ok ? out.closedLoop.symtf : null;
+        const to = symbolicTypeOrder(olS, clS);
+        if (to) { out.char.symType = to.type; out.char.symOrder = to.order; }
+    }
+
+    // Steady-state error to reference and disturbance inputs.
+    out.ess = computeEss(nodes, connections);
 
     return out;
 }

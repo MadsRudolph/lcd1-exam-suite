@@ -521,6 +521,21 @@ h2 {
     border: 1px solid rgba(239, 68, 68, 0.35);
 }
 
+.analysis-divider {
+    font-size: 10px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--accent-purple);
+    padding: 6px 2px 0;
+    border-top: 1px solid var(--border-color);
+    margin-top: 4px;
+}
+
+.analysis-item.ess {
+    border-left-color: var(--accent-purple);
+}
+
 /* Custom Scrollbar for sleek UI */
 ::-webkit-scrollbar {
     width: 6px;

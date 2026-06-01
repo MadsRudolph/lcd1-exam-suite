@@ -386,10 +386,58 @@ document.addEventListener('DOMContentLoaded', () => {
             metrics.textContent = bits.join('   ·   ');
             analysisOutput.appendChild(metrics);
         } else if (a.closedLoop && a.closedLoop.ok) {
+            if (c && c.symType !== undefined) {
+                const metrics = document.createElement('div');
+                metrics.className = 'analysis-metrics';
+                metrics.textContent = `Type = ${c.symType}   ·   Order = ${c.symOrder}`;
+                analysisOutput.appendChild(metrics);
+            }
             analysisOutput.appendChild(analysisNote('Poles & stability',
                 'Symbolic diagram — assign numeric values to blocks for pole/stability analysis.',
                 'var(--text-secondary)'));
         }
+
+        // Steady-state error
+        const ess = a.ess;
+        if (ess && ess.ok) {
+            analysisOutput.appendChild(sectionDivider('Steady-State Error'));
+            const fmt = (e) => e && e.type !== 'unknown' ? e.katex : '?';
+            if (ess.reference) {
+                analysisOutput.appendChild(essRow('Reference · unit step', `e_{r,ss} = ${fmt(ess.reference.step)}`));
+                analysisOutput.appendChild(essRow('Reference · unit ramp', `e_{r,ss} = ${fmt(ess.reference.ramp)}`));
+                analysisOutput.appendChild(essRow('Reference · unit parabola', `e_{r,ss} = ${fmt(ess.reference.parabola)}`));
+            }
+            ess.disturbances.forEach(d => {
+                analysisOutput.appendChild(essRow(`Disturbance ${d.label} · unit step`, `e_{d,ss} = ${fmt(d.step)}`));
+            });
+        } else if (ess && ess.reason) {
+            analysisOutput.appendChild(sectionDivider('Steady-State Error'));
+            analysisOutput.appendChild(analysisNote('Steady-state error', ess.reason, 'var(--text-secondary)'));
+        }
+    }
+
+    // A section heading inside the analysis list (e.g. "Steady-State Error").
+    function sectionDivider(text) {
+        const el = document.createElement('div');
+        el.className = 'analysis-divider';
+        el.textContent = text;
+        return el;
+    }
+
+    // A steady-state-error row: a small caption plus the KaTeX result.
+    function essRow(caption, latex) {
+        const item = document.createElement('div');
+        item.className = 'analysis-item ess';
+        const cap = document.createElement('div');
+        cap.className = 'analysis-label';
+        cap.textContent = caption;
+        item.appendChild(cap);
+        const formulaEl = document.createElement('div');
+        formulaEl.className = 'analysis-formula';
+        if (window.katex) katex.render(latex, formulaEl, { displayMode: false, throwOnError: false });
+        else formulaEl.textContent = latex;
+        item.appendChild(formulaEl);
+        return item;
     }
 
     // -------------------------------------------------------------
