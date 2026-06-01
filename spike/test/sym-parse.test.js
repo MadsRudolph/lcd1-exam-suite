@@ -45,3 +45,29 @@ test("rejects malformed numbers and non-integer exponents", () => {
   assert.throws(() => parseExprToTF("1..2"));
   assert.throws(() => parseExprToTF("s^2.5"));
 });
+
+test("accepts ** for powers and · for multiplication", () => {
+  assert.equal(str(parseExprToTF("s**2")), "0,0,1 | 1");
+  assert.equal(str(parseExprToTF("K/(s**2+2*s+10)")), "K | 10,2,1");
+  assert.equal(str(parseExprToTF("2·s")), "0,2 | 1");
+});
+
+test("'s' is reserved: a glued coefficient·s splits (a2s -> a2*s)", () => {
+  assert.equal(str(parseExprToTF("a2s")), "0,a2 | 1");      // a2 * s
+  assert.equal(str(parseExprToTF("b2s**2")), "0,0,b2 | 1"); // b2 * s^2
+  assert.equal(str(parseExprToTF("Ks")), "0,K | 1");        // K * s
+});
+
+test("multi-character parameter names without s stay intact", () => {
+  assert.equal(str(parseExprToTF("Kp")), "Kp | 1");
+  assert.equal(str(parseExprToTF("tau*s+1")), "1,tau | 1");
+  assert.equal(str(parseExprToTF("alpha")), "alpha | 1");
+});
+
+test("the full E25 symbolic TF parses as written (** and glued s)", () => {
+  // (1.5s**3 + a2 s**2 + a1 s - 1) / (s**3 + b2 s**2 + b1*s + 1)
+  const tf = parseExprToTF("(1.5s**3+a2s**2+a1s-1)/(s**3+b2s**2+b1*s+1)");
+  // numerator coeffs by ascending power of s: [-1, a1, a2, 3/2]
+  assert.equal(tf.num.map((m) => m.toString()).join(","), "-1,a1,a2,3/2");
+  assert.equal(tf.den.map((m) => m.toString()).join(","), "1,b1,b2,1");
+});

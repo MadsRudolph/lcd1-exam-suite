@@ -5,7 +5,10 @@ import { Rational } from "./rational.js";
 function tokenize(src) {
     const tokens = [];
     let i = 0;
-    const s = src.replace(/\s+/g, "");
+    // Accept the notation people actually type: '**' for powers (the numeric
+    // solver's convention) and '·' for multiplication, both normalized to the
+    // CAS's own '^'/'*'.
+    const s = src.replace(/\s+/g, "").replace(/\*\*/g, "^").replace(/·/g, "*");
     while (i < s.length) {
         const ch = s[i];
         if ("+-*/^()".includes(ch)) { tokens.push({ t: ch }); i++; continue; }
@@ -17,7 +20,18 @@ function tokenize(src) {
         }
         if (/[A-Za-z_]/.test(ch)) {
             let j = i; while (j < s.length && /[A-Za-z0-9_]/.test(s[j])) j++;
-            tokens.push({ t: "id", v: s.slice(i, j) }); i = j; continue;
+            const run = s.slice(i, j);
+            // 's' is the reserved Laplace variable; peel it out of a glued run so
+            // 'a2s' tokenizes as a2 * s, while multi-character parameter names
+            // (Kp, tau, a2, …) stay intact. Adjacent tokens implicit-multiply.
+            let buf = "";
+            const flush = () => { if (buf) { tokens.push(/^[0-9]+$/.test(buf) ? { t: "num", v: buf } : { t: "id", v: buf }); buf = ""; } };
+            for (const c of run) {
+                if (c === "s") { flush(); tokens.push({ t: "id", v: "s" }); }
+                else buf += c;
+            }
+            flush();
+            i = j; continue;
         }
         throw new Error(`Unexpected character '${ch}' in '${src}'`);
     }
