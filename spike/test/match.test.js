@@ -93,6 +93,21 @@ test("stable-range range option distinguishes near distractors (0<K<90 vs 0<K<98
   assert.deepEqual(opts.map((o) => o.flag), ["match", "no_match", "no_match", "no_match"]);
 });
 
+test("TF match treats reduced and unreduced forms as equal (pole/zero cancellation)", () => {
+  // ReExam F21 Q6: state-space gives (10s+10)/(s²+2s+1); option is the reduced 10/(s+1).
+  const target = { num: [10, 10], den: [1, 2, 1] };
+  const o = matchOptions({ value: target, kind: "TF" }, "10/(s+1)\n100/(s+1)\n10/(s*(s+1))");
+  assert.equal(o[0].flag, "match");
+  assert.equal(o[1].flag, "no_match");
+  assert.equal(o[2].flag, "no_match");
+});
+
+test("TF match still distinguishes a different gain (2/(s+1) ≠ 1/(s+1))", () => {
+  const o = matchOptions({ value: { num: [2], den: [1, 1] }, kind: "TF" }, "1/(s+1)\n2/(s+1)");
+  assert.equal(o[0].flag, "no_match");
+  assert.equal(o[1].flag, "match");
+});
+
 test("stable-range still matches a single in-range candidate (K_P = 50)", () => {
   const opts = ["a) K_P = 50", "b) 0.0222 < K_P < 1", "c) K_P = 0.0222"]
     .map((t) => ({ raw_text: t, flag: "no_match" }));

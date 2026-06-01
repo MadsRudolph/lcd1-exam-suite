@@ -2,9 +2,9 @@ import { test } from "node:test";
 import assert from "node:assert/strict";
 import { formsInGroup, formByFn } from "../../lcd-forms.js";
 
-test("design group is the G-reusing goals (incl. the G(jω) evaluator)", () => {
+test("design group is the G-reusing goals (incl. the G(jω) evaluator and ess-with-K_P)", () => {
   const fns = formsInGroup("design").map((f) => f.fn).sort();
-  assert.deepEqual(fns, ["evaluate_gjw", "solve_K_for_spec", "solve_P_for_PM", "solve_pi_lead", "solve_stable_K_range"]);
+  assert.deepEqual(fns, ["close_loop", "evaluate_gjw", "solve_K_for_spec", "solve_P_for_PM", "solve_ess_table", "solve_pi_lead", "solve_stable_K_range"]);
 });
 
 test("source group is the four TF producers", () => {

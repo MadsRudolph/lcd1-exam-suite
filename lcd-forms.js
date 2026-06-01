@@ -104,10 +104,13 @@ export const FORMS = [
     explanation: "K_P for a target steady-state error on a type-0 plant. G(0) may be dB or linear.",
   },
   {
-    pattern: "P5", title: "P5 — ess table", variant: "type + Kp/Kv/Ka + ess", fn: "solve_ess_table",
+    pattern: "P5", title: "P5 — ess table", variant: "type + Kp/Kv/Ka + ess", fn: "solve_ess_table", group: "design",
     resultKind: "DICT", dictMatchKeys: ["type", "K_p", "K_v", "K_a", "ess_step", "ess_ramp", "ess_parabola"],
-    fields: [{ name: "G", label: "G(s)", kind: "tf", placeholder: "5*(s+4) / (s**2 * (s+1) * (s+20))", tooltip: "Open-loop plant G(s). Fold a P-gain in as K*(...) if stated." }],
-    explanation: "System type, error constants Kp/Kv/Ka, and ess for step/ramp/parabola.",
+    fields: [
+      { name: "G", label: "G(s)", kind: "tf", placeholder: "5*(s+4) / (s**2 * (s+1) * (s+20))", tooltip: "Open-loop plant G(s)." },
+      { name: "K_P", label: "P-controller gain K_P (optional)", kind: "str", placeholder: "2", tooltip: "Proportional gain in the loop (forward or feedback branch). Leave blank for no controller. The loop becomes K_P·G, so ess_step = 1/(1+K_P·G(0))." },
+    ],
+    explanation: "System type, error constants Kp/Kv/Ka, and ess for step/ramp/parabola. Add a P-gain K_P (forward or feedback branch) and it folds into the loop.",
   },
   // ---- P6 ----
   {
@@ -259,6 +262,23 @@ export const FORMS = [
     explanation: "Turn step-response read-offs into second-order parameters: peak & steady values → overshoot → ζ; period or peak time → ω_d; then ω_n = ω_d/√(1−ζ²).",
   },
   {
+    pattern: "Analysis", title: "Close the loop · T = L/(1+L)", variant: "open-loop L → closed-loop T", fn: "close_loop", group: "design",
+    resultKind: "TF",
+    fields: [
+      { name: "G", label: "open-loop L(s)", kind: "tf", placeholder: "2/(s*(s+2))", tooltip: "The open-loop / loop-gain transfer function. The System box G is reused automatically." },
+      { name: "K", label: "loop gain K (optional)", kind: "str", default: "1", placeholder: "1", tooltip: "Closes T = K·L/(1+K·L). Leave at 1 for plain unity feedback." },
+    ],
+    explanation: "Unity-feedback closed loop T = K·L/(1+K·L) from the open-loop L(s): the closed-loop transfer function, its poles, ζ/ωₙ (if 2nd order) and stability.",
+  },
+  {
+    pattern: "Analysis", title: "GM from a Nyquist crossing", variant: "crossing distance → GM (dB) & critical gain", fn: "gm_from_crossing", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "d", label: "|negative-real-axis crossing|", kind: "str", placeholder: "0.1639", tooltip: "The distance from the origin where the open-loop Nyquist curve crosses the negative real axis (e.g. 0.1639). GM = 1/d, and 1/d is also the proportional gain that drives the curve through −1." },
+    ],
+    explanation: "From a Nyquist real-axis crossing at −d: gain margin GM = 1/d (and 20·log₁₀(1/d) dB), which is also the critical proportional gain K = 1/d that makes the loop marginally stable.",
+  },
+  {
     pattern: "Analysis", title: "Initial / final value", variant: "IVT & FVT on F(s)", fn: "value_theorems", group: "calc",
     resultKind: "INFO",
     fields: [
@@ -266,6 +286,38 @@ export const FORMS = [
       { name: "input", label: "apply input", kind: "dropdown", default: "none", options: ["none", "step", "ramp", "impulse"], tooltip: "Multiply F by the input: step = 1/s, ramp = 1/s², impulse = 1. Use 'none' if F is already the full signal." },
     ],
     explanation: "Initial-value theorem y(0⁺)=lim_{s→∞} sF(s) and final-value theorem y(∞)=lim_{s→0} sF(s). FVT is the quick route to a steady-state value or error (e.g. lim_{s→0} sE(s)).",
+  },
+  // ---- MATLAB reference snippets (for the symbolic question types the JS
+  // ---- engine doesn't rebuild — copy & run in MATLAB instead) ----
+  {
+    pattern: "MATLAB", title: "Time response y(t) — MATLAB", variant: "ilaplace of G(s)·U(s)", fn: "matlab_time_response", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "Gs", label: "G(s)", kind: "tf", placeholder: "5/(s+1)", tooltip: "Transfer function from input to output." },
+      { name: "input", label: "input", kind: "dropdown", default: "step", options: ["step", "ramp", "impulse", "none"], tooltip: "Standard input (step=1/s, ramp=1/s², impulse=1). Overridden by a custom U(s) below." },
+      { name: "U_custom", label: "custom U(s) (optional)", kind: "str", placeholder: "2/(s+3)", tooltip: "Laplace transform of the input, e.g. 2/(s+3) for u(t)=2e^{-3t}. Leave blank to use the dropdown." },
+    ],
+    explanation: "Emits MATLAB that gives the closed-form y(t)=ilaplace(G·U) (plus initial/final values) — the time-response questions the JS tool only gives limits for.",
+  },
+  {
+    pattern: "MATLAB", title: "Linearize → TF — MATLAB", variant: "symbolic Jacobian (sin/√/exp, any order)", fn: "matlab_linearize", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "f", label: "f(x,u) in ẋ = f(x,u)", kind: "str", placeholder: "(a*0.056*sqrt(300000-1600*w) - 0.12*w)/0.23", tooltip: "Right-hand side of the state equation — may contain sin, sqrt, exp." },
+      { name: "stateVar", label: "state symbol", kind: "str", default: "x", placeholder: "w" },
+      { name: "inputVar", label: "input symbol", kind: "str", default: "u", placeholder: "a" },
+      { name: "point", label: "operating point", kind: "str", placeholder: "w=62.83, a=0.3" },
+    ],
+    explanation: "Emits MATLAB that linearizes a nonlinear ODE — including sin/√/exp, and higher-order ODEs via the commented state-space recipe.",
+  },
+  {
+    pattern: "MATLAB", title: "Parameter stability — MATLAB", variant: "stability region in a symbol", fn: "matlab_param_stability", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "expr", label: "state matrix [..] or characteristic polynomial", kind: "str", placeholder: "[-1 1; 2 -w]", tooltip: "A state matrix containing the parameter (e.g. [-1 1; 2 -w]) or the characteristic polynomial in s." },
+      { name: "param", label: "parameter", kind: "str", default: "w", placeholder: "w" },
+    ],
+    explanation: "Emits MATLAB that finds the range of a parameter for which every pole is in the left half-plane.",
   },
 ];
 

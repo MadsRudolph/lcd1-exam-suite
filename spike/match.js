@@ -3,6 +3,7 @@
 // A solver result {value, kind} is matched against the user's pasted options.
 // kind ∈ "NUMBER" | "DICT" | "TF" | "PICK".
 import { parseTf } from "./numeric/parse.js";
+import { polyMul, polyTrim } from "./numeric/poly.js";
 
 const DB_SUFFIX = /^\s*(.+?)\s*dB\s*$/i;
 
@@ -134,27 +135,27 @@ function matchDictAuto(dict, lines) {
   return options;
 }
 
-function scaleTf(tf) {
-  const num = tf.num ?? tf[0];
-  const den = tf.den ?? tf[1];
-  const d0 = den[0];
-  return { num: num.map((c) => c / d0), den: den.map((c) => c / d0) };
+// Two rational functions are equal — including when one is written in an
+// unreduced, pole/zero-cancellable form — iff num_A·den_B ≡ num_B·den_A as
+// polynomials. Cross-multiplying avoids root-finding and is exact up to float
+// dust, so e.g. 10/(s+1) matches (10s+10)/(s²+2s+1), while 2/(s+1) ≠ 1/(s+1).
+function tfEqual(A, B) {
+  const lhs = polyTrim(polyMul(A.num ?? A[0], B.den ?? B[1]));
+  const rhs = polyTrim(polyMul(B.num ?? B[0], A.den ?? A[1]));
+  if (lhs.length !== rhs.length) return false;
+  const norm = Math.max(1, ...lhs.map(Math.abs), ...rhs.map(Math.abs));
+  return lhs.every((c, i) => Math.abs(c - rhs[i]) <= 1e-6 * norm);
 }
 
 function matchTf(target, lines) {
-  const T = scaleTf(target);
   return lines.map((ln) => {
     let opt;
     try {
-      opt = scaleTf(parseTf(ln));
+      opt = parseTf(ln);
     } catch {
       return { raw_text: ln, parsed: null, distance: null, flag: "unparseable", note: "" };
     }
-    const eq =
-      opt.num.length === T.num.length &&
-      opt.den.length === T.den.length &&
-      opt.num.every((c, i) => Math.abs(c - T.num[i]) < 1e-6) &&
-      opt.den.every((c, i) => Math.abs(c - T.den[i]) < 1e-6);
+    const eq = tfEqual(target, opt);
     return { raw_text: ln, parsed: ln, distance: null, flag: eq ? "match" : "no_match", note: "" };
   });
 }

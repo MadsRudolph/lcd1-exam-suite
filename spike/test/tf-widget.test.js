@@ -1,6 +1,29 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { combineTf, tfSymbols, matlabForPlot } from "../../lcd-tf-helpers.js";
+import { combineTf, tfSymbols, matlabForPlot, matlabTimeResponse, matlabLinearize, matlabParamStability } from "../../lcd-tf-helpers.js";
+
+test("matlabTimeResponse builds Y=G*U with ilaplace and value theorems", () => {
+  const code = matlabTimeResponse("5/(s+1)", "custom", "2/(s+3)");
+  assert.match(code, /G = 5\/\(s\+1\);/);
+  assert.match(code, /U = 2\/\(s\+3\);/);
+  assert.match(code, /ilaplace\(Y, s, t\)/);
+  assert.match(code, /limit\(s\*Y, s, 0\)/);
+});
+
+test("matlabLinearize preserves function calls (sqrt not corrupted) and substitutes the point", () => {
+  const code = matlabLinearize("(a*0.056*sqrt(300000-1600*w) - 0.12*w)/0.23", "w", "a", "w=62.83, a=0.3");
+  assert.match(code, /sqrt\(300000-1600\*w\)/);   // sqrt( not turned into sqrt*(
+  assert.doesNotMatch(code, /sqrt\*\(/);
+  assert.match(code, /diff\(f, w\)/);
+  assert.match(code, /\[w a\], \[62\.83 0\.3\]/);
+});
+
+test("matlabParamStability emits charpoly + eig stability region for a state matrix", () => {
+  const code = matlabParamStability("[-1 1; 2 -w]", "w");
+  assert.match(code, /A = \[-1 1; 2 -w\];/);
+  assert.match(code, /charpoly\(A, s\)/);
+  assert.match(code, /real\(eig\(A\)\) < 0, w/);
+});
 
 test("combineTf leaves a single-atom numerator and denominator bare", () => {
   assert.equal(combineTf("K", "s"), "K/s");

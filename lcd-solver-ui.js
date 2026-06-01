@@ -54,7 +54,7 @@ function katex(target, latex, display = true) {
 let state = {};
 
 function card(k, v) {
-  const c = el("div", { style: `background:#101a2e;border:1px solid #2c3a55;border-radius:9px;padding:9px 11px;` });
+  const c = el("div", { style: `background:var(--inset,#101a2e);border:1px solid var(--border-color,#2c3a55);border-radius:9px;padding:9px 11px;` });
   c.append(el("div", { style: `color:${SUB};font-size:11px;` }, k));
   const val = el("div", { style: `color:${TXT};font:600 15px 'JetBrains Mono';margin-top:2px;` }); val.textContent = v;
   c.append(val);
@@ -74,7 +74,7 @@ function optionRow(o) {
   const bg = matched ? "rgba(16,185,129,0.08)" : "transparent";
   const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:7px;border:1px solid ${border};background:${bg};font:12px 'JetBrains Mono';` });
   const v = el("span", {}); v.textContent = o.raw_text;
-  const tag = el("span", { style: `color:${matched ? "#10b981" : plausible ? "#fbbf24" : SUB};font:600 11px 'Outfit';` });
+  const tag = el("span", { style: `color:${matched ? "#10b981" : plausible ? "var(--warn,#fbbf24)" : SUB};font:600 11px 'Outfit';` });
   tag.textContent = matched ? "✓ match" : plausible ? "≈ plausible" : (o.note || "");
   row.append(v, tag);
   return row;
@@ -117,6 +117,7 @@ function analyzeAndRender() {
     card("ω_c / ω_π", a.margins ? `${numFmt(a.margins.omega_gc)} / ${numFmt(a.margins.omega_pc)}` : "—"),
     card("ess step / ramp", a.ess ? `${numFmt(a.ess.ess_step)} / ${numFmt(a.ess.ess_ramp)}` : "—"),
     card("y(0⁺) / y(∞)", `${numFmt(a.initialValue)} / ${a.finalValue === Infinity ? "∞" : numFmt(a.finalValue)}`),
+    card("ζ / ωₙ", a.zeta == null ? "—" : `${numFmt(a.zeta)} / ${numFmt(a.omega_n)}`),
     card("bandwidth", numFmt(a.bandwidth)),
     card("settling t_s", a.settling == null ? "—" : `${numFmt(a.settling)} s`),
     card("stable?", a.stable == null ? "—" : a.stable ? "yes" : "no"),
@@ -127,7 +128,7 @@ function analyzeAndRender() {
   renderDesignStrip(state.board, src); // implemented in Task 6
 
   const matchWrap = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:6px;" });
-  const sel = el("select", { style: `background:rgba(30,41,59,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:6px;font:12px 'Inter';width:max-content;` });
+  const sel = el("select", { style: `background:var(--panel-strong,rgba(30,41,59,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:6px;font:12px 'Inter';width:max-content;` });
   const quantities = {
     "DC gain (dB)": a.dcGain_dB, "PM (°)": a.margins?.PM_deg, "GM (dB)": a.margins?.GM_dB,
     "ω_c": a.margins?.omega_gc, "DC gain (linear)": a.dcGain, "bandwidth": a.bandwidth,
@@ -139,10 +140,10 @@ function analyzeAndRender() {
   // matched in the linear domain — otherwise "6 dB" (≈2.0) would be compared
   // against the dB number 6.02 and the wrong option would win.
   const matchTarget = (k) => (/\(dB\)/.test(k) ? (k.startsWith("DC gain") ? a.dcGain : a.margins?.GM) : quantities[k]);
-  const optsTa = el("textarea", { rows: "3", placeholder: "paste the 5 options, one per line", style: `background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:12px 'JetBrains Mono';` });
+  const optsTa = el("textarea", { rows: "3", placeholder: "paste the 5 options, one per line", style: `background:var(--panel,rgba(30,41,59,0.4));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:12px 'JetBrains Mono';` });
   if (pendingOpts) optsTa.value = pendingOpts;
   state.optsTa = optsTa; // shared with the design goals so they can flag the answer too
-  const mbtn = el("button", { style: "background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:7px 12px;font:600 12px 'Outfit';cursor:pointer;width:max-content;" }, "Match options");
+  const mbtn = el("button", { style: "background:rgba(99,102,241,0.18);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:7px 12px;font:600 12px 'Outfit';cursor:pointer;width:max-content;" }, "Match options");
   const mout = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
   mbtn.onclick = () => {
     const target = matchTarget(sel.value);
@@ -166,19 +167,28 @@ function renderDesignStrip(parent, src) {
   const goals = formsInGroup("design");
   if (!goals.length) return;
   parent.append(sectionLabel("Design · pick a goal, reuse the G above"));
-  const wrap = el("div", { style: `background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:9px;` });
+  const wrap = el("div", { style: `background:var(--panel,#0e1830);border:1px solid ${BORDER};border-radius:10px;padding:11px;display:flex;flex-direction:column;gap:9px;` });
   const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   const body = el("div", {});
   wrap.append(chips, body);
   for (const f of goals) {
     const chip = el("button", { style:
-      `background:#172033;color:${TXT};border:1px solid #3b4a66;border-radius:8px;padding:6px 10px;font:600 12px 'Outfit';cursor:pointer;` },
+      `background:var(--panel-strong,#172033);color:${TXT};border:1px solid var(--border-color,#3b4a66);border-radius:8px;padding:6px 10px;font:600 12px 'Outfit';cursor:pointer;` },
       f.title.replace(/^P\d+ — |^Analysis — /, ""));
     chip.onclick = () => showGoal(f, body, src);
     chips.append(chip);
   }
   parent.append(wrap);
 }
+
+// Forms whose result is informational / a code snippet — pasting multiple-choice
+// options against them can't flag anything, so they don't get an options box.
+const NO_OPTION_FORMS = new Set([
+  "characterize", "dominant_settling", "analyze_stability", "symbolic_analysis",
+  "symbolic_disturbance_ess", "solve_symbol", "linearize_tf", "symbolic_equiv",
+  "plot_tf", "evaluate_gjw", "bode_readoff", "pick_feedforward_form",
+  "matlab_time_response", "matlab_linearize", "matlab_param_stability",
+]);
 
 function showGoal(form, body, src) {
   body.innerHTML = "";
@@ -189,23 +199,34 @@ function showGoal(form, body, src) {
     row.append(el("label", { style: `color:${SUB};font:500 12px 'Inter';` }, fld.label));
     let input;
     if (fld.kind === "dropdown") {
-      input = el("select", { style: `background:rgba(30,41,59,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:7px;` });
+      input = el("select", { style: `background:var(--panel-strong,rgba(30,41,59,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:7px;` });
       (fld.options || []).forEach((o) => input.append(el("option", { value: o }, o)));
       if (fld.default) input.value = fld.default;
     } else {
-      input = el("input", { type: "text", value: fld.default || "", placeholder: fld.placeholder || "", style: `background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:13px 'JetBrains Mono';` });
+      input = el("input", { type: "text", value: fld.default || "", placeholder: fld.placeholder || "", style: `background:var(--panel,rgba(30,41,59,0.4));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:13px 'JetBrains Mono';` });
     }
     inputs.set(fld.name, input);
     row.append(input); body.append(row);
+  }
+  // Per-form options box so option-flagging works even for a standalone
+  // calculator (no system G typed). Pre-filled from the shared dashboard box /
+  // Smart Paste when those carry options.
+  let optsLocal = null;
+  if (!NO_OPTION_FORMS.has(form.fn)) {
+    const orow = el("div", { style: "display:flex;flex-direction:column;gap:3px;margin-top:8px;" });
+    orow.append(el("label", { style: `color:${SUB};font:500 12px 'Inter';` }, "answer options (optional, one per line)"));
+    optsLocal = el("textarea", { rows: "3", placeholder: "1. K = 8.4\n2. K = 77.5\n3. K = 19.5", style: `background:var(--panel,rgba(30,41,59,0.4));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:12px 'JetBrains Mono';resize:vertical;` });
+    if (state.optsTa && state.optsTa.value.trim()) optsLocal.value = state.optsTa.value;
+    orow.append(optsLocal); body.append(orow);
   }
   const go = el("button", { style: "margin-top:9px;background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:9px 14px;font:600 12px 'Outfit';cursor:pointer;" }, "Solve");
   const out = el("div", { style: `margin-top:9px;color:${TXT};` });
   go.onclick = () => {
     const inp = { G: src };
     for (const [k, el2] of inputs) inp[k] = el2.value;
-    // Reuse the options the student pasted (or Smart Paste pulled in) so the goal
-    // can flag which one its answer matches — not just print the number.
-    const optionsText = (state.optsTa && state.optsTa.value.trim()) || "";
+    // Prefer the form's own options box; fall back to the shared dashboard box
+    // (or Smart Paste) so a goal can flag which option its answer matches.
+    const optionsText = (optsLocal && optsLocal.value.trim()) || (state.optsTa && state.optsTa.value.trim()) || "";
     const res = runSolver(form.fn, inp, optionsText, goalMatchKey(form, inp));
     out.innerHTML = "";
     if (!res.ok) { out.innerHTML = `<span style="color:#f59e0b">${res.note || "could not solve"}</span>`; return; }
@@ -221,7 +242,20 @@ function showGoal(form, body, src) {
       res.options.forEach((o) => ow.append(optionRow(o)));
       out.append(ow);
     }
-    if (res.note) out.append(el("div", { style: `margin-top:7px;color:#fcd34d;font:12px 'Inter';` }, res.note));
+    if (res.matlab) {
+      const mw = el("div", { style: "margin-top:9px;display:flex;flex-direction:column;gap:6px;" });
+      mw.append(sectionLabel("MATLAB — copy & run"));
+      const pre = el("pre", { style: `background:var(--inset,rgba(15,23,42,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:10px;font:12px/1.45 'JetBrains Mono',monospace;white-space:pre;overflow-x:auto;margin:0;` }, res.matlab);
+      const cb = el("button", { style: `background:rgba(245,158,11,0.14);color:var(--warn,#fcd34d);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;width:max-content;` }, "⧉ Copy MATLAB");
+      cb.onclick = async () => {
+        try { await navigator.clipboard.writeText(res.matlab); cb.textContent = "✓ Copied"; }
+        catch { cb.textContent = "✗ Copy failed"; }
+        setTimeout(() => { cb.textContent = "⧉ Copy MATLAB"; }, 1400);
+      };
+      mw.append(pre, cb);
+      out.append(mw);
+    }
+    if (res.note) out.append(el("div", { style: `margin-top:7px;color:var(--warn,#fcd34d);font:12px 'Inter';` }, res.note));
   };
   body.append(go, out);
 }
@@ -255,15 +289,15 @@ function renderSymbolicBoard(src, pendingOpts = null) {
 
   state.board.append(sectionLabel("Check the exam's options · paste one per line"));
   const ta = el("textarea", { rows: "4", placeholder: "K/(s^2+a*s+K)\n...", style:
-    `width:100%;background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:9px;font:12px 'JetBrains Mono';` });
+    `width:100%;background:var(--panel,rgba(30,41,59,0.4));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:9px;font:12px 'JetBrains Mono';` });
   if (pendingOpts) ta.value = pendingOpts;
-  const btn = el("button", { style: "margin-top:7px;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:8px;padding:8px 12px;font:600 12px 'Outfit';cursor:pointer;" }, "Check which option is equal");
+  const btn = el("button", { style: "margin-top:7px;background:rgba(16,185,129,0.16);color:var(--ok,#6ee7b7);border:1px solid rgba(16,185,129,0.45);border-radius:8px;padding:8px 12px;font:600 12px 'Outfit';cursor:pointer;" }, "Check which option is equal");
   const out = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:5px;" });
   btn.onclick = () => {
     const res = runSolver("symbolic_equiv", { ref: src }, ta.value.trim(), null);
     out.innerHTML = "";
     (res.options || []).forEach((o) => {
-      const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:7px;border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};background:${o.flag === "match" ? "rgba(16,185,129,0.08)" : "rgba(30,41,59,0.25)"};font:12px 'JetBrains Mono';` });
+      const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:7px 10px;border-radius:7px;border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};background:${o.flag === "match" ? "rgba(16,185,129,0.08)" : "var(--panel,var(--panel,rgba(30,41,59,0.4)))"};font:12px 'JetBrains Mono';` });
       const v = el("span", {}); v.textContent = o.raw_text;
       const tag = el("span", { style: `color:${o.flag === "match" ? "#10b981" : SUB};font:600 11px 'Outfit';` }); tag.textContent = o.flag === "match" ? "✓ equal" : o.flag === "unparseable" ? "? unparseable" : "not equal";
       row.append(v, tag); out.append(row);
@@ -292,9 +326,9 @@ function clearAll() {
 function buildSmartPaste() {
   const wrap = el("div", { style: "margin-top:2px;" });
   const toggle = el("button", { style:
-    `background:rgba(16,185,129,0.12);color:#6ee7b7;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
+    `background:rgba(16,185,129,0.12);color:var(--ok,#6ee7b7);border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
     "📋 Paste an exam question");
-  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  const panel = el("div", { style: `display:none;margin-top:8px;background:var(--panel,#0e1830);border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
   toggle.onclick = () => {
     const open = panel.style.display === "none";
     panel.style.display = open ? "block" : "none";
@@ -303,7 +337,7 @@ function buildSmartPaste() {
   };
   const ta = el("textarea", { rows: "5", placeholder:
     "Paste the full question — garbled PDF copy is fine. The transfer function and the answer options are pulled out automatically.", style:
-    `width:100%;box-sizing:border-box;resize:vertical;background:rgba(15,23,42,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:10px;font:13px/1.4 'JetBrains Mono',monospace;` });
+    `width:100%;box-sizing:border-box;resize:vertical;background:var(--inset,rgba(15,23,42,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:10px;font:13px/1.4 'JetBrains Mono',monospace;` });
   const hint = el("div", { style: "margin-top:9px;display:flex;flex-direction:column;gap:7px;min-height:14px;" });
   panel.append(ta, hint);
   wrap.append(toggle, panel);
@@ -354,14 +388,14 @@ function renderPasteHint(hintEl, r) {
     d.textContent = txt;
     return d;
   };
-  if (r.source) hintEl.append(line(`✓ ${SOURCE_NOTE[r.source]}`, "#6ee7b7", "rgba(16,185,129,0.08)"));
-  if (r.intent) hintEl.append(line(`This looks like a ${r.intent.label} question. ${r.intent.hint}`, "#a5b4fc", "rgba(99,102,241,0.08)"));
+  if (r.source) hintEl.append(line(`✓ ${SOURCE_NOTE[r.source]}`, "var(--ok,#6ee7b7)", "rgba(16,185,129,0.08)"));
+  if (r.intent) hintEl.append(line(`This looks like a ${r.intent.label} question. ${r.intent.hint}`, "var(--accent-blue,#a5b4fc)", "rgba(99,102,241,0.08)"));
   if (r.options) {
     const opts = r.options.split("\n").filter(Boolean);
     const where = r.tf ? " — also filled into the matcher below" : "";
     hintEl.append(line(`Found ${opts.length} answer option${opts.length === 1 ? "" : "s"}: ${opts.join(",  ")}${where}.`, "#94a3b8", "rgba(148,163,184,0.08)"));
   }
-  if (r.note) hintEl.append(line(r.note, "#fcd34d", "rgba(245,158,11,0.08)"));
+  if (r.note) hintEl.append(line(r.note, "var(--warn,#fcd34d)", "rgba(245,158,11,0.08)"));
 }
 
 // Collapsible visual numerator-over-denominator editor. Lets the student write
@@ -370,9 +404,9 @@ function renderPasteHint(hintEl, r) {
 function buildTfWidget() {
   const wrap = el("div", { style: "margin-top:2px;" });
   const toggle = el("button", { style:
-    `background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
+    `background:rgba(99,102,241,0.12);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
     "✚ Build a transfer function");
-  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  const panel = el("div", { style: `display:none;margin-top:8px;background:var(--panel,#0e1830);border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
   toggle.onclick = () => {
     const open = panel.style.display === "none";
     panel.style.display = open ? "block" : "none";
@@ -380,20 +414,20 @@ function buildTfWidget() {
   };
 
   const mkField = (ph) => el("input", { type: "text", placeholder: ph, style:
-    `width:100%;box-sizing:border-box;background:rgba(15,23,42,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 10px;font:14px 'JetBrains Mono';text-align:center;` });
+    `width:100%;box-sizing:border-box;background:var(--inset,rgba(15,23,42,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 10px;font:14px 'JetBrains Mono';text-align:center;` });
   const numIn = mkField("numerator   e.g.  K   or   s+1");
   const denIn = mkField("denominator  e.g.  s*(s+a)   or   (s+2)*(s+3)");
   const bar = el("div", { style: `height:2px;background:${TXT};opacity:.6;margin:7px 0;border-radius:2px;` });
   const fracCol = el("div", { style: "display:flex;flex-direction:column;flex:1;min-width:0;" });
   fracCol.append(numIn, bar, denIn);
-  const preview = el("div", { style: `min-width:110px;display:flex;align-items:center;justify-content:center;color:#a5b4fc;font:14px 'JetBrains Mono';padding:0 6px;` });
+  const preview = el("div", { style: `min-width:110px;display:flex;align-items:center;justify-content:center;color:var(--accent-blue,#a5b4fc);font:14px 'JetBrains Mono';padding:0 6px;` });
   const top = el("div", { style: "display:flex;align-items:center;gap:12px;" });
   top.append(fracCol, preview);
 
   const status = el("div", { style: "margin-top:8px;font:12px 'JetBrains Mono';min-height:16px;" });
   const row = el("div", { style: "display:flex;gap:8px;margin-top:9px;" });
   const insertBtn = el("button", { style: "background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;" }, "↧ Insert into G(s)");
-  const copyBtn = el("button", { style: `background:rgba(30,41,59,0.7);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "⧉ Copy");
+  const copyBtn = el("button", { style: `background:var(--panel-strong,rgba(30,41,59,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "⧉ Copy");
   row.append(insertBtn, copyBtn);
   panel.append(top, status, row);
   wrap.append(toggle, panel);
@@ -445,7 +479,7 @@ function buildSyntaxHelp() {
   const toggle = el("button", { style:
     `background:transparent;color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:5px 10px;font:600 11px 'Outfit';cursor:pointer;` },
     "ⓘ Syntax");
-  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  const panel = el("div", { style: `display:none;margin-top:8px;background:var(--panel,#0e1830);border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
   toggle.onclick = () => {
     const open = panel.style.display === "none";
     panel.style.display = open ? "block" : "none";
@@ -461,7 +495,7 @@ function buildSyntaxHelp() {
   const exLabel = el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px;` }, "Examples — click to load");
   const exRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   for (const tf of ["12/((s+2)*(s+3))", "1/(s+1)**3", "25/(s**2+3*s+25)", "K/(s*(s+a))"]) {
-    const b = el("button", { style: `background:rgba(99,102,241,0.14);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:5px 9px;font:600 11px 'JetBrains Mono';cursor:pointer;` }, tf);
+    const b = el("button", { style: `background:rgba(99,102,241,0.14);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:5px 9px;font:600 11px 'JetBrains Mono';cursor:pointer;` }, tf);
     b.onclick = () => { state.sysBox.value = tf; state.growSys(); analyzeAndRender(); };
     exRow.append(b);
   }
@@ -484,7 +518,7 @@ function buildGuide() {
 
   // Collapsible section card.
   const section = (title, subtitle, open = false) => {
-    const wrap = el("div", { style: `background:#0e1830;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;` });
+    const wrap = el("div", { style: `background:var(--panel,#0e1830);border:1px solid ${BORDER};border-radius:12px;overflow:hidden;` });
     const hd = el("button", { style: "width:100%;text-align:left;background:transparent;border:none;cursor:pointer;padding:14px 16px;display:flex;flex-direction:column;gap:3px;" });
     const row = el("div", { style: `color:${TXT};font:700 15px 'Outfit';display:flex;justify-content:space-between;align-items:center;gap:10px;` });
     row.append(el("span", {}, title));
@@ -499,10 +533,10 @@ function buildGuide() {
     return wrap;
   };
   const p = (html) => el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` }, html);
-  const formula = (latex) => { const d = el("div", { style: "margin:2px 0;color:#cbd5e1;" }); katex(d, latex, true); return d; };
+  const formula = (latex) => { const d = el("div", { style: "margin:2px 0;color:var(--text-primary,#cbd5e1);" }); katex(d, latex, true); return d; };
   const chipRow = () => el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;" });
   const chip = (label, onClick, green = false) => {
-    const c = green ? ["#6ee7b7", "rgba(16,185,129,0.16)", "rgba(16,185,129,0.4)"] : ["#a5b4fc", "rgba(99,102,241,0.16)", "rgba(99,102,241,0.4)"];
+    const c = green ? ["var(--ok,#6ee7b7)", "rgba(16,185,129,0.16)", "rgba(16,185,129,0.4)"] : ["var(--accent-blue,#a5b4fc)", "rgba(99,102,241,0.16)", "rgba(99,102,241,0.4)"];
     const b = el("button", { style: `background:${c[1]};color:${c[0]};border:1px solid ${c[2]};border-radius:999px;padding:7px 13px;font:600 12px 'Outfit',monospace;cursor:pointer;` }, label);
     b.onclick = onClick;
     return b;
@@ -576,7 +610,7 @@ function buildGuide() {
 
   // Disclaimer — always visible, deliberately not collapsible.
   const disc = el("div", { style: "background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;" });
-  disc.append(el("div", { style: "color:#fcd34d;font:700 15px 'Outfit';" }, "⚠️ Disclaimer — exam rules are your responsibility"));
+  disc.append(el("div", { style: "color:var(--warn,#fcd34d);font:700 15px 'Outfit';" }, "⚠️ Disclaimer — exam rules are your responsibility"));
   disc.append(el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` },
     "This is a free, educational study aid provided <b>as is</b>, with no guarantee its results are correct. Whether any tool or aid may be used in an exam, test or assignment is decided solely by the rules of your course, examiner and institution — and those rules vary and change."));
   disc.append(el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` },
@@ -588,9 +622,9 @@ function buildGuide() {
 
 function init() {
   // ---- floating switcher ----
-  const bar = el("div", { style:
+  const bar = el("div", { class: "lcd-switcher", style:
     "position:fixed;top:14px;left:50%;transform:translateX(-50%);z-index:1000;display:flex;gap:4px;" +
-    `background:rgba(15,23,42,0.85);backdrop-filter:blur(12px);border:1px solid ${BORDER};border-radius:999px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);` });
+    `background:var(--switcher-bg,rgba(15,23,42,0.85));backdrop-filter:blur(12px);border:1px solid ${BORDER};border-radius:999px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);` });
   const mkTab = (t) => el("button", { style:
     `border:none;background:transparent;color:${SUB};font:600 12px/1 'Outfit',sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;transition:all .15s;` }, t);
   const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver"), tabGuide = mkTab("📖 Guide");
@@ -602,7 +636,7 @@ function init() {
   // ---- panel ----
   const panel = el("div", { id: "lcd-panel", style:
     "position:fixed;inset:0;z-index:900;display:none;grid-template-columns:1fr;" +
-    "background:var(--bg-primary,#0f172a);padding:60px 0 0 0;overflow:hidden;" });
+    "background:var(--bg-main,#0f172a);padding:60px 0 0 0;overflow:hidden;" });
 
   // left column (scrolls)
   const left = el("div", { style: `padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:14px;` });
@@ -626,22 +660,35 @@ function init() {
   // system input — one box for everything
   const sysBox = el("textarea", { id: "lcd-sys", rows: "1", placeholder: "G(s) = e.g.  12/((s+2)*(s+3))   or   K/(s*(s+a))", style:
     `width:100%;box-sizing:border-box;resize:none;overflow:hidden;white-space:pre-wrap;overflow-wrap:anywhere;` +
-    `background:rgba(15,23,42,0.6);color:${TXT};border:1px solid #3b82f6;border-radius:10px;padding:12px 14px;font:15px/1.4 'JetBrains Mono',monospace;` });
+    `background:var(--inset,rgba(15,23,42,0.6));color:${TXT};border:1px solid #3b82f6;border-radius:10px;padding:12px 14px;font:15px/1.4 'JetBrains Mono',monospace;` });
   // Grow the box to fit the whole expression instead of scrolling inside one row.
   const growSys = () => { sysBox.style.height = "auto"; sysBox.style.height = `${sysBox.scrollHeight}px`; };
-  const echo = el("div", { id: "lcd-echo", style: `margin-top:7px;font:12px 'JetBrains Mono';color:#6ee7b7;min-height:16px;` });
+  const echo = el("div", { id: "lcd-echo", style: `margin-top:7px;font:12px 'JetBrains Mono';color:var(--ok,#6ee7b7);min-height:16px;` });
   left.append(el("label", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "System — one box for everything"));
   left.append(sysBox, echo);
   left.append(buildSyntaxHelp());
   const board = el("div", { id: "lcd-board", style: "display:flex;flex-direction:column;gap:12px;margin-top:6px;" });
   left.append(board);
 
+  // Source builders — turn an ODE / state space / Bode read-off into a G(s).
+  const srcWrap = el("div", { style: "margin-top:14px;" });
+  srcWrap.append(el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;` }, "Source — build G(s) from an ODE / state space / Bode read-off"));
+  const srcChips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;" });
+  const srcBody = el("div", {});
+  for (const f of formsInGroup("source")) {
+    const chip = el("button", { style: `background:var(--panel-strong,#172033);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, f.title.replace(/^P\d+ — |^Analysis — /, ""));
+    chip.onclick = () => showGoal(f, srcBody, "");
+    srcChips.append(chip);
+  }
+  srcWrap.append(srcChips, srcBody);
+  left.append(srcWrap);
+
   const calcWrap = el("div", { style: "margin-top:14px;" });
   calcWrap.append(el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;` }, "Calculators (not based on one G)"));
   const calcChips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;" });
   const calcBody = el("div", {});
   for (const f of formsInGroup("calc")) {
-    const chip = el("button", { style: `background:#172033;color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, f.title.replace(/^P\d+ — |^Analysis — /, ""));
+    const chip = el("button", { style: `background:var(--panel-strong,#172033);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, f.title.replace(/^P\d+ — |^Analysis — /, ""));
     chip.onclick = () => showGoal(f, calcBody, "");
     calcChips.append(chip);
   }
@@ -651,6 +698,11 @@ function init() {
   state.sysBox = sysBox; state.echo = echo; state.board = board; state.growSys = growSys;
   sysBox.addEventListener("input", () => { growSys(); analyzeAndRender(); });
   state.analyzeAndRender = analyzeAndRender;
+  // Plots are baked SVG strings, so a theme switch must rebuild them to pick
+  // up the new colours. exam-theme.js fires this after flipping the theme.
+  window.addEventListener("lcd-theme-change", () => {
+    if (state.sysBox && state.sysBox.value.trim()) analyzeAndRender();
+  });
 
   panel.append(left);
   document.body.appendChild(panel);
@@ -658,13 +710,13 @@ function init() {
   // ---- guide page (full-screen overlay, scrolls) ----
   const guide = el("div", { id: "lcd-guide", style:
     "position:fixed;inset:0;z-index:900;display:none;overflow:auto;" +
-    "background:var(--bg-primary,#0f172a);padding:70px 0 48px 0;" });
+    "background:var(--bg-main,#0f172a);padding:70px 0 48px 0;" });
   guide.append(buildGuide());
   document.body.appendChild(guide);
 
   // ---- behaviour ----
   const appContainer = document.querySelector(".app-container");
-  const ACTIVE = "linear-gradient(135deg,#3b82f6,#6366f1)";
+  const ACTIVE = "var(--switcher-active,linear-gradient(135deg,#3b82f6,#6366f1))";
   // Accepts a mode string ('bdr'|'lcd'|'guide'); true/false kept for old callers.
   const setMode = (m) => {
     const mode = m === true ? "lcd" : m === false ? "bdr" : m;
@@ -705,7 +757,7 @@ function mountUseButton(result, canvas) {
   let btn = document.getElementById("use-in-lcd-btn");
   if (!btn) {
     btn = el("button", { id: "use-in-lcd-btn", class: "btn-copy", title: "Send this G(s) to the LCD1 Solver",
-      style: "background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:6px;padding:4px 10px;font:600 11px 'Outfit';cursor:pointer;" },
+      style: "background:rgba(99,102,241,0.18);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.35);border-radius:6px;padding:4px 10px;font:600 11px 'Outfit';cursor:pointer;" },
       "∑ Use in LCD1 Solver →");
     host.appendChild(btn);
   }
@@ -768,7 +820,7 @@ function showSubstitutionModal(symbols, onConfirm) {
   const overlay = el("div", { style:
     "position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);" });
   const card = el("div", { style:
-    `background:var(--bg-primary,#0f172a);border:1px solid ${BORDER};border-radius:12px;padding:20px;min-width:320px;display:flex;flex-direction:column;gap:12px;` });
+    `background:var(--bg-main,#0f172a);border:1px solid ${BORDER};border-radius:12px;padding:20px;min-width:320px;display:flex;flex-direction:column;gap:12px;` });
   card.append(el("div", { style: `color:${TXT};font:700 14px 'Outfit';` }, "Give each block a numeric value"));
   card.append(el("div", { style: `color:${SUB};font:12px 'Inter';` }, "The diagram still has symbolic blocks. Enter numbers (or expressions in s) to analyze it."));
   const inputs = {};
@@ -776,13 +828,13 @@ function showSubstitutionModal(symbols, onConfirm) {
     const row = el("div", { style: "display:flex;align-items:center;gap:10px;" });
     row.append(el("label", { style: `color:${TXT};font:600 13px 'JetBrains Mono';min-width:48px;` }, `${sym} =`));
     const inp = el("input", { type: "text", placeholder: "e.g. 5 or 1/(s+2)", style:
-      `flex:1;background:rgba(30,41,59,0.5);color:${TXT};border:1px solid ${BORDER};border-radius:6px;padding:7px;font:13px 'JetBrains Mono';` });
+      `flex:1;background:var(--panel,rgba(30,41,59,0.4));color:${TXT};border:1px solid ${BORDER};border-radius:6px;padding:7px;font:13px 'JetBrains Mono';` });
     inputs[sym] = inp;
     row.append(inp);
     card.append(row);
   }
   const btns = el("div", { style: "display:flex;gap:8px;justify-content:flex-end;margin-top:4px;" });
-  const cancel = el("button", { style: `background:rgba(30,41,59,0.7);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "Cancel");
+  const cancel = el("button", { style: `background:var(--panel-strong,rgba(30,41,59,0.6));color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "Cancel");
   const ok = el("button", { style: "background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:8px 16px;font:600 12px 'Outfit';cursor:pointer;" }, "Use it →");
   cancel.onclick = () => overlay.remove();
   ok.onclick = () => {
@@ -814,18 +866,18 @@ function renderChooser(tf) {
   c.innerHTML = "";
   c.style.display = "flex";
   c.append(el("div", { style: `color:${TXT};font:600 12px 'Outfit';` }, "From the block diagram:"));
-  const tfEl = el("div", { style: `color:#a5b4fc;font:12px 'JetBrains Mono';overflow-x:auto;` }); tfEl.textContent = `G(s) = ${tf}`;
+  const tfEl = el("div", { style: `color:var(--accent-blue,#a5b4fc);font:12px 'JetBrains Mono';overflow-x:auto;` }); tfEl.textContent = `G(s) = ${tf}`;
   c.append(tfEl);
 
   // Symbolic path — keep K, a, … symbolic and test multiple-choice answers.
   c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:2px;` }, "Test answer options without plugging in numbers:"));
   const symChips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   const symChip = el("button", { title: "keep parameters symbolic and test exam answers for algebraic equality", style:
-    `background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
+    `background:rgba(16,185,129,0.16);color:var(--ok,#6ee7b7);border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
     "∑ Test against answer options");
   symChip.onclick = () => { state.setRef(tf); c.style.display = "none"; };
   const dashChip = el("button", { title: "treat this as the loop gain L and show closed-loop, type, order, K₀ and ess together", style:
-    `background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
+    `background:rgba(16,185,129,0.16);color:var(--ok,#6ee7b7);border:1px solid rgba(16,185,129,0.45);border-radius:999px;padding:7px 13px;font:600 11px 'Outfit';cursor:pointer;` },
     "∑ Loop answers (closed-loop · type · ess)");
   dashChip.onclick = () => { state.setL(tf); c.style.display = "none"; };
   symChips.append(symChip, dashChip);
@@ -836,7 +888,7 @@ function renderChooser(tf) {
   const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   for (const ch of BRIDGE_CHOICES) {
     const chip = el("button", { title: `treats G as ${ch.note}`, style:
-      `background:rgba(30,41,59,0.7);color:${TXT};border:1px solid ${BORDER};border-radius:999px;padding:6px 11px;font:600 11px 'Outfit';cursor:pointer;` });
+      `background:var(--panel-strong,rgba(30,41,59,0.6));color:${TXT};border:1px solid ${BORDER};border-radius:999px;padding:6px 11px;font:600 11px 'Outfit';cursor:pointer;` });
     chip.textContent = `${ch.label} · ${ch.note}`;
     chip.onclick = () => routeNumeric(ch.fn, tf);
     chips.append(chip);
@@ -854,7 +906,7 @@ function renderPlotPanel(pd, defaultTab = "Step", src = "") {
 
   // image overlay behind the SVG, controlled from the tab row
   const fileBtn = el("label", { title: "load a screenshot of the exam's plot to compare against",
-    style: `background:rgba(30,41,59,0.6);color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, "⧉ Overlay exam plot");
+    style: `background:var(--panel-strong,rgba(30,41,59,0.6));color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` }, "⧉ Overlay exam plot");
   const fileInput = el("input", { type: "file", accept: "image/*", style: "display:none;" });
   fileBtn.append(fileInput);
   const opacity = el("input", { type: "range", min: "0", max: "100", value: "45", title: "overlay opacity",
@@ -882,7 +934,7 @@ function renderPlotPanel(pd, defaultTab = "Step", src = "") {
   };
   for (const name of Object.keys(views)) {
     const b = el("button", { "data-tab": name, style:
-      `background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);` +
+      `background:rgba(99,102,241,0.15);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.3);` +
       `border-radius:8px;padding:6px 12px;font:600 11px 'Outfit';cursor:pointer;` }, name);
     b.onclick = () => show(name);
     tabs.append(b);
@@ -890,7 +942,7 @@ function renderPlotPanel(pd, defaultTab = "Step", src = "") {
 
   // Copy runnable, commented MATLAB that reproduces the tab currently in view.
   const mlBtn = el("button", { title: "copy MATLAB code that draws this plot",
-    style: `background:rgba(245,158,11,0.14);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` },
+    style: `background:rgba(245,158,11,0.14);color:var(--warn,#fcd34d);border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` },
     "⧉ Copy MATLAB");
   mlBtn.onclick = async () => {
     const code = matlabForPlot(src, currentTab);

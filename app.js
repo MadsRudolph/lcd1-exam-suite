@@ -12,6 +12,7 @@ import { analyzeImageTopology } from './vision-analyzer.js';
 import { TEMPLATES, TEMPLATE_GROUPS } from './templates.js';
 import { createDiagramStore } from './diagram-store.js';
 import './lcd-solver-ui.js';
+import './exam-theme.js';
 
 document.addEventListener('DOMContentLoaded', () => {
     const svgEl = document.getElementById('diagram-svg');

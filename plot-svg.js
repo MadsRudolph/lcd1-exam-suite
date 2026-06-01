@@ -8,7 +8,21 @@ export function escapeXml(s) {
     .replace(/"/g, "&quot;").replace(/'/g, "&#39;");
 }
 
-const COL = { axis: "#64748b", grid: "rgba(148,163,184,0.18)", text: "#94a3b8", fg: "#e2e8f0" };
+// Plot colours are read live from CSS variables so the Exam theme reskins the
+// plots. The typeof-document guard keeps the dark fallbacks under node --test
+// (where there is no DOM), so the existing tests are unaffected.
+function cssVar(name, fallback) {
+  if (typeof document === "undefined" || !document.documentElement) return fallback;
+  const v = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  return v || fallback;
+}
+const COL = {
+  get axis() { return cssVar("--plot-axis", "#64748b"); },
+  get grid() { return cssVar("--plot-grid", "rgba(148,163,184,0.18)"); },
+  get text() { return cssVar("--plot-text", "#94a3b8"); },
+  get fg()   { return cssVar("--plot-fg", "#e2e8f0"); },
+  get bg()   { return cssVar("--plot-bg", "transparent"); },
+};
 
 let _clipSeq = 0;
 
@@ -52,7 +66,7 @@ export function linePlot(opts) {
   const parts = [`<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" font-family="Inter, sans-serif"` +
     ` data-kind="${escapeXml(opts.kind || "")}" data-plotbox="${pl},${pt},${pr - pl},${pb - pt}" data-xscale="${log ? "log" : "linear"}"` +
     ` data-xdomain="${sx.min},${sx.max}" data-ydomain="${sy.min},${sy.max}">`];
-  parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="none"/>`);
+  parts.push(`<rect x="0" y="0" width="${W}" height="${H}" fill="${COL.bg}"/>`);
   parts.push(`<clipPath id="${clipId}"><rect x="${pl}" y="${pt}" width="${pr - pl}" height="${pb - pt}"/></clipPath>`);
   if (opts.title) parts.push(`<text x="${W / 2}" y="16" fill="${COL.fg}" font-size="12" text-anchor="middle">${escapeXml(opts.title)}</text>`);
 

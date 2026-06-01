@@ -136,3 +136,95 @@ export function matlabForPlot(src, tab) {
   lines.push("s = tf('s');", `G = ${matlabSrc};`, "", ...block);
   return lines.join("\n");
 }
+
+// ---- MATLAB reference snippets ------------------------------------------------
+// For the symbolic question types the JS engine deliberately doesn't rebuild
+// (inverse-Laplace y(t), higher-order/transcendental linearization, parameter
+// stability), emit ready-to-run MATLAB instead. Reference, not a solver.
+
+// Like toMatlabExpr but preserves function calls: it does NOT rewrite name( into
+// name*( (that would corrupt sin(…) / sqrt(…) / exp(…)).
+function toMatlabFunc(src) {
+  return String(src)
+    .trim()
+    .replace(/\*\*/g, "^")
+    .replace(/\)\s*\(/g, ")*(")
+    .replace(/([0-9.])\s*([A-Za-z(])/g, "$1*$2")
+    .replace(/\)\s*([A-Za-z0-9.])/g, ")*$1");
+}
+
+function parsePointMap(pt) {
+  const m = {};
+  for (const part of String(pt || "").split(",")) {
+    const [k, v] = part.split("=");
+    if (k && v !== undefined) m[k.trim()] = v.trim();
+  }
+  return m;
+}
+
+// y(t) = L^{-1}{ G(s)·U(s) }, plus the initial/final-value theorems.
+export function matlabTimeResponse(Gsrc, inputKind = "step", customU = "") {
+  const G = toMatlabExpr(Gsrc);
+  const U_std = { step: "1/s", ramp: "1/s^2", impulse: "1", none: "1" };
+  const U = customU && customU.trim() ? toMatlabExpr(customU) : (U_std[inputKind] || "1/s");
+  const syms = tfSymbols(G).filter((x) => x !== "t");
+  const lines = ["% Time-domain response  y(t) = ilaplace( G(s) * U(s) )", "syms s t"];
+  if (syms.length) { lines.push("% set parameter values:"); for (const k of syms) lines.push(`${k} = 1;`); }
+  lines.push(
+    `G = ${G};`,
+    `U = ${U};            % step=1/s, ramp=1/s^2, impulse=1; or e.g. laplace(2*exp(-3*t))`,
+    "Y = G*U;",
+    "y = ilaplace(Y, s, t);   % the answer (may print in sinh/cosh form — equivalent to exponentials)",
+    "% y = rewrite(y, 'exp');  % optional: force the exponential form (needs a healthy Symbolic Toolbox)",
+    "disp('y(t) ='), pretty(y)",
+    "fprintf('y(inf) = %s\\n', char(limit(s*Y, s, 0)));   % final-value theorem",
+    "fprintf('y(0+)  = %s\\n', char(limit(s*Y, s, inf)));  % initial-value theorem"
+  );
+  return lines.join("\n");
+}
+
+// First-order linearization xdot = f(x,u) -> G(s) = dX/dU. Handles sin/sqrt/exp
+// (symbolic diff); the trailing comment gives the state-space recipe for a
+// higher-order ODE.
+export function matlabLinearize(f, stateVar = "x", inputVar = "u", point = "") {
+  const F = toMatlabFunc(f);
+  const pm = parsePointMap(point);
+  const sv = pm[stateVar] !== undefined ? pm[stateVar] : stateVar;
+  const iv = pm[inputVar] !== undefined ? pm[inputVar] : inputVar;
+  return [
+    "% Linearize  xdot = f(x,u)  about an operating point  ->  G(s) = dX/dU",
+    `syms ${stateVar} ${inputVar} s`,
+    `f = ${F};`,
+    `A = double(subs(diff(f, ${stateVar}), [${stateVar} ${inputVar}], [${sv} ${iv}]));`,
+    `B = double(subs(diff(f, ${inputVar}), [${stateVar} ${inputVar}], [${sv} ${iv}]));`,
+    "G = B/(s - A);",
+    "disp('A ='), disp(A), disp('B ='), disp(B), pretty(G)",
+    "% Higher-order ODE? write it as xdot = f([x1;x2],u), then:",
+    "%   A = double(subs(jacobian(f,[x1 x2]), [x1 x2 u], [x10 x20 u0]));",
+    "%   B = double(subs(jacobian(f,u),        [x1 x2 u], [x10 x20 u0]));",
+    "%   G = tf(ss(A,B,[1 0],0));"
+  ].join("\n");
+}
+
+// Stability region of a system in a literal parameter (e.g. a state-matrix entry).
+export function matlabParamStability(expr, param = "w") {
+  const E = expr && expr.trim() ? expr.trim() : "[-1 1; 2 -w]";
+  const lines = [`syms ${param} s`];
+  if (E.includes("[")) {
+    lines.push(
+      `A = ${E};        % state matrix containing ${param}`,
+      "p = charpoly(A, s);",
+      "disp('characteristic polynomial:'), disp(collect(p, s))",
+      `sol = solve(real(eig(A)) < 0, ${param}, 'ReturnConditions', true);`,
+      "disp(sol.conditions)   % the stability region"
+    );
+  } else {
+    lines.push(
+      `p = ${toMatlabFunc(E)};        % characteristic polynomial in s`,
+      "disp('characteristic polynomial:'), disp(collect(p, s))",
+      "% Routh-Hurwitz: 2nd order s^2+a1 s+a0 stable iff a1>0 & a0>0;",
+      "%               3rd order adds a2*a1 > a0.  Solve those inequalities for the parameter."
+    );
+  }
+  return lines.join("\n");
+}

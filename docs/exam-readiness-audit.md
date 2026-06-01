@@ -97,31 +97,37 @@ and repeated/origin poles no longer display float dust like `1.7e-44+1.414j` (sn
 
 ---
 
-## Remaining gaps (ranked for impact, not fixed tonight)
+## Remaining gaps — now addressed
 
-These are recommendations, not regressions. Highest value first.
+All seven gaps from the first pass are resolved: four natively in JS, three via a **MATLAB reference**
+(the tool emits ready‑to‑run MATLAB for the heavy symbolic types rather than rebuilding a CAS, since
+MATLAB is available anyway). Full suite **403/403 green**; `bundle.js` rebuilt.
 
-1. **ess with a P‑controller in the feedback/forward branch** (recurs 3×: S21 Q16, Theory Q5, F21P2 Q16).
-   The ess table assumes unity feedback, so it returns `1/(1+G(0))` (e.g. 0.333) when the answer needs
-   the gain: `e_ss = 1/(1+K_P·G(0))` (= 0.2). *NotebookLM‑confirmed formula.* **Recommend** a small
-   "ess with P‑gain" calculator (inputs: G, K_P, branch). **Exam workaround:** read `DC gain` (= G(0))
-   off the board and compute `1/(1+K_P·G(0))` by hand.
-2. **Time‑domain response y(t)** (inverse Laplace / partial fractions) for an arbitrary input
-   (ReExam F21 Q7, Q8). The tool gives initial/final value but not the `y(t)=…e^{−at}…` expression the
-   question asks for. **Recommend** a residue/partial‑fraction tool.
-3. **State‑space → TF without pole/zero cancellation** (ReExam F21 Q6): the tool shows the unreduced
-   `(10s+10)/(s²+2s+1)` rather than the reduced `10/(s+1)`, and the *TF* option‑matcher compares
-   fixed‑length coefficient arrays, so it won't match a reduced option. **Recommend** cancelling common
-   factors and comparing TFs as reduced rationals. (Numerics — poles, DC gain — are correct regardless.)
-4. **2nd‑order / mixed‑term linearization** (Final‑Test Q2 `5uÿ`, Mock Q15 `ẍ+ẋ+4sin x`): the linearizer
-   is first‑order only. **Recommend** extending to 2nd order.
-5. **Stability range in a state‑matrix parameter** (F22 Q9: `w > 2`): `stable_K_range` only handles a
-   loop gain K, not an arbitrary parameter. Niche.
-6. **GM in dB from a Nyquist real‑axis crossing** (F22 Q11): no one‑click `20·log₁₀(1/d)` helper.
-   **Workaround:** type it into the `evaluate G(jω)` box or compute by hand.
-7. **Overshoot‑% option matching** (ReExam F21 Q10): the 2nd‑order form matches on `ζ` by default, so
-   `4.3 %` options aren't auto‑flagged — but `Mp = 4.3 %` *is shown in the summary*, so the answer is
-   right there. Minor.
+1. **ess with a P‑controller in a branch** (S21 Q16, Theory Q5, F21P2 Q16) — **FIXED (native).** The P5
+   ess form has an optional **K_P** field; the loop becomes K_P·G so `ess_step = 1/(1+K_P·G(0))`
+   (NotebookLM‑confirmed). S21 Q16 now returns 0.2 and flags the `0.2` option.
+3. **State‑space → TF pole/zero cancellation + reduced‑TF matching** (ReExam F21 Q6) — **FIXED (native).**
+   The displayed TF is reduced (`(10s+10)/(s²+2s+1)` → `10/(s+1)`), and the option matcher now compares
+   rationals by cross‑multiplication (`a/b = c/d ⇔ a·d = c·b`), so a reduced‑form option matches an
+   unreduced computed TF (and `2/(s+1) ≠ 1/(s+1)` is still distinguished). ODE→TF / SS→TF results now
+   run the TF option matcher too.
+6. **GM in dB from a Nyquist crossing** (F22 Q11) — **FIXED (native).** New calculator: enter the
+   crossing distance `d` → `GM = 1/d`, `20·log₁₀(1/d)` dB, and the critical gain `1/d`; flags the dB option.
+7. **Overshoot‑% option matching** (ReExam F21 Q10) — **FIXED (native).** When 2nd‑order options are
+   written as percentages, the matcher targets `Mp%` instead of `ζ`, so `4.3 %` is flagged.
+2. **Time‑domain response y(t)** (ReExam F21 Q7, Q8) — **MATLAB reference.** New "Time response y(t) —
+   MATLAB" calculator emits `Y=G·U; y=ilaplace(Y)` plus the initial/final‑value theorems, pre‑filled
+   with your G(s) and input.
+4. **2nd‑order / mixed‑term linearization** (Final‑Test Q2, Mock Q15) — **partly native + MATLAB ref.**
+   First‑order transcendental linearization runs natively (numeric fallback); the "Linearize → TF —
+   MATLAB" calculator covers sin/√/exp and higher‑order ODEs (symbolic Jacobian / state‑space recipe).
+5. **Stability range in a state‑matrix parameter** (F22 Q9) — **MATLAB reference.** New "Parameter
+   stability — MATLAB" calculator emits `charpoly` + `eig`/Routh to solve for the stable region of a
+   literal parameter.
+
+> The three MATLAB‑reference calculators live in the **Calculators** strip; each shows a **⧉ Copy
+> MATLAB** button. Use them when MATLAB is the faster route — the JS tool no longer pretends to do
+> everything.
 
 ---
 
@@ -143,12 +149,15 @@ so always sanity‑check the read‑out before trusting the green ✓.
 | "overshoot / ζ / ωₙ / t_p / t_s"              | **P4 2nd‑order specs** (fill any subset). For a *step plot*, **P4 From a step‑response plot**  | full 2nd‑order table                            |
 | "K so overshoot ≤ X%"                         | **Design → K for transient spec**, spec `Mp <= 0.12`                                           | K boundary                                      |
 | "closed‑loop K from one metric"               | **P4 Closed‑loop + 1 spec** (note the closed‑loop TF has `+K`)                                 | K + table                                       |
-| "steady‑state error / system type"            | **System box** (type/ess auto), or **P5 ess table**. ⚠ if K_P is in a branch, see gap #1       | type, K_p/K_v/K_a, ess                          |
+| "steady‑state error / system type"            | **System box** (type/ess auto), or **P5 ess table** — put the P‑gain in the **K_P** field if the loop has one (forward or feedback) | type, K_p/K_v/K_a, ess |
 | "K_P from a target ess"                       | **P5 K_P from ess**                                                                            | K_P                                             |
 | "nested‑loop ess (find K₂ / K_P)"             | **P7 Nested ess**                                                                              | the gain                                        |
 | "feed‑forward controller form"                | **P7 Feedforward form**                                                                        | option letter + formula                         |
-| "linearize this nonlinear ODE"                | **Analysis → Linearize → TF**. Substitute constants as numbers; sin/√/exp now work (1st order) | G(s), pole, gain                                |
+| "linearize this nonlinear ODE"                | **Linearize → TF** (1st‑order, incl. sin/√/exp). Higher order → **Linearize → TF — MATLAB**     | G(s), pole, gain                                |
 | "evaluate G(jω) / find ω for a gain or phase" | **Analysis → evaluate G(jω)**                                                                  | G dB, ∠G, ω                                     |
+| "gain margin from a Nyquist crossing"         | **GM from a Nyquist crossing** — enter the crossing distance d                                  | GM (dB), GM (linear), critical gain 1/d         |
+| "find y(t) / the time response"               | **Time response y(t) — MATLAB** (copy & run)                                                    | MATLAB: y(t), y(0⁺), y(∞)                       |
+| "for which parameter values is it stable"     | **Parameter stability — MATLAB** (copy & run)                                                   | MATLAB: charpoly + stability region             |
 | "block diagram → TF"                          | **◧ Block Diagram mode** — draw it, Solve Loop, then *Use in LCD1 Solver*                      | exact symbolic TF                               |
 | "pick the matching Bode/Nyquist/step plot"    | type the candidate G(s), open **Plots**, overlay the exam figure                               | not auto‑answered — eyeball                     |
 | "which statement is correct / prove…"         | not solvable — use your own knowledge                                                          | —                                               |

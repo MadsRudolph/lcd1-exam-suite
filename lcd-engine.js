@@ -3,6 +3,8 @@
 //   runSolver(fn, inputs, optionsText, matchKey) -> normalized result
 // Both sit on the parity-verified solver modules in ./spike.
 import { parseTf } from "./spike/numeric/parse.js";
+import { roots } from "./spike/numeric/roots.js";
+import { polyTrim, polyAdd } from "./spike/numeric/poly.js";
 import { solveMargins, solveStableKRange } from "./spike/solvers/p3.js";
 import { solve2ndOrder, solveKForSpec, solveClosedLoop2ndOrder } from "./spike/solvers/p4.js";
 import { solveKPFromEss, solveEssTable } from "./spike/solvers/p5.js";
@@ -27,6 +29,7 @@ import { feedback } from "./symbolic/combinators.js";
 import { renderSymTF } from "./symbolic/render.js";
 import { RatFunc } from "./symbolic/ratfunc.js";
 import { formByFn } from "./lcd-forms.js";
+import { matlabTimeResponse, matlabLinearize, matlabParamStability } from "./lcd-tf-helpers.js";
 
 // A RatFunc → readable string (denominator is 1 after normalization for a polynomial).
 const ratStr = (rf) => (rf === Infinity ? "∞" : rf.den.isConstant() ? rf.num.toString() : `(${rf.num.toString()}) / (${rf.den.toString()})`);
@@ -215,6 +218,31 @@ function numericLinearize(fStr, stateVar, inputVar, point) {
   return { ok: true, A, B };
 }
 
+// Cancel real common factors shared by a numerator and denominator (a numeric
+// pole/zero cancellation) so a state-space→TF result shows its reduced form,
+// e.g. (10s+10)/(s²+2s+1) → 10/(s+1). Synthetic division by each shared real
+// root is exact up to float dust; complex common factors (rare here) are left
+// alone. Display-only — the parity-tested solver output is untouched.
+function deflate(a, r) {
+  const out = [a[0]];
+  for (let i = 1; i < a.length - 1; i++) out.push(a[i] + r * out[i - 1]);
+  return out;
+}
+function reduceRealCommon(num, den) {
+  let n = polyTrim(num.slice()), d = polyTrim(den.slice());
+  for (let guard = 0; guard < 16 && n.length > 1 && d.length > 1; guard++) {
+    const zr = roots(n).filter((r) => Math.abs(r.im) < 1e-7).map((r) => r.re);
+    const pr = roots(d).filter((r) => Math.abs(r.im) < 1e-7).map((r) => r.re);
+    let cancelled = false;
+    for (const z of zr) {
+      const p = pr.find((x) => Math.abs(x - z) <= 1e-6 * (1 + Math.abs(z)));
+      if (p !== undefined) { n = deflate(n, z); d = deflate(d, p); cancelled = true; break; }
+    }
+    if (!cancelled) break;
+  }
+  return { num: n, den: d };
+}
+
 // ---- core solve ----
 export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
   const form = formByFn(fn);
@@ -233,11 +261,15 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
       case "solve_ode_to_tf": {
         const G = solveOdeToTf(flist(inp.y_coeffs), flist(inp.u_coeffs));
         tfResult(out, G);
+        out.options = matchTfOpts(G, optionsText);
         break;
       }
       case "solve_state_space_to_tf": {
-        const G = solveStateSpaceToTf(fmatrix(inp.A), fmatrix(inp.B), fmatrix(inp.C), fmatrix(inp.D));
+        let G = solveStateSpaceToTf(fmatrix(inp.A), fmatrix(inp.B), fmatrix(inp.C), fmatrix(inp.D));
+        const red = reduceRealCommon(G.num, G.den); // show the reduced TF, e.g. 10/(s+1)
+        G = new G.constructor(red.num, red.den);
         tfResult(out, G);
+        out.options = matchTfOpts(G, optionsText);
         break;
       }
       case "compose_tf_from_bode": {
@@ -281,7 +313,11 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
       }
       case "solve_2nd_order": {
         const r = solve2ndOrder({ Mp: fnum(inp.Mp), zeta: fnum(inp.zeta), omega_n: fnum(inp.omega_n), t_p: fnum(inp.t_p), t_s_2pct: fnum(inp.t_s_2pct) });
-        dictResult(out, r, matchKey || "zeta", optionsText);
+        // If the options are written as percentages (an overshoot question), match
+        // against Mp% rather than the default ζ.
+        let mk = matchKey || "zeta";
+        if (!matchKey && /%/.test(optionsText) && r.Mp_pct != null) mk = "Mp_pct";
+        dictResult(out, r, mk, optionsText);
         break;
       }
       case "solve_closed_loop_2nd_order": {
@@ -300,7 +336,47 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "solve_ess_table": {
-        dictResult(out, solveEssTable(parseTf(inp.G)), matchKey || "ess_step", optionsText);
+        const Gess = parseTf(inp.G);
+        // Optional P-controller gain K_P (forward or feedback branch): the loop
+        // gain becomes K_P·G, so ess_step = 1/(1+K_P·G(0)). NotebookLM-confirmed.
+        const Kp = fnum(inp.K_P);
+        const Geff = (Kp != null && Kp !== 1) ? new Gess.constructor(Gess.num.map((c) => c * Kp), Gess.den) : Gess;
+        dictResult(out, solveEssTable(Geff), matchKey || "ess_step", optionsText);
+        break;
+      }
+      case "close_loop": {
+        const L = parseTf(inp.G);
+        const Kc = fnum(inp.K) ?? 1;
+        // Unity feedback: T = K·L/(1+K·L). With L = num/den, T = K·num/(den + K·num).
+        const Knum = L.num.map((c) => c * Kc);
+        const red = reduceRealCommon(Knum, polyAdd(L.den, Knum));
+        const T = new L.constructor(red.num, red.den);
+        const c = characterizeTf(T);
+        const stable = !T.poles().some((p) => p.re > 1e-9);
+        out.tf = formatTf(T.num, T.den);
+        out.latex = `T(s) = ${tfLatex(T.num, T.den)}`;
+        out.summary = [
+          ["closed-loop T(s)", out.tf],
+          ["poles", T.poles().map(cplxStr).join(", ")],
+          ["DC gain T(0)", plain(c.dc_gain)],
+        ];
+        if (c.is_second_order) out.summary.push(["ζ", plain(c.zeta)], ["ω_n", plain(c.omega_n)]);
+        out.summary.push(["stable?", stable ? "yes" : "no"]);
+        out.options = matchTfOpts(T, optionsText);
+        break;
+      }
+      case "gm_from_crossing": {
+        const d = Math.abs(fnum(inp.d));
+        if (!d) { out.ok = false; out.note = "Enter the distance |where the Nyquist plot crosses the negative real axis| — e.g. 0.1639."; break; }
+        const gm = 1 / d;
+        const gm_dB = 20 * Math.log10(gm);
+        out.latex = `GM = ${fmt(gm)}\\ (${fmt(gm_dB)}\\text{ dB}),\\quad K_{crit} = ${fmt(gm)}`;
+        out.summary = [["GM (linear)", plain(gm)], ["GM (dB)", plain(gm_dB)], ["critical gain K = 1/d", plain(gm)]];
+        // Gain margin is conventionally quoted in dB, so flag against the dB value;
+        // for a "critical gain" question (options are gains) nothing false-flags and
+        // the student reads K = 1/d straight off the summary.
+        out.options = optionsText ? matchOptions({ value: gm_dB, kind: "NUMBER" }, optionsText) : null;
+        noMatchNote(out);
         break;
       }
       case "solve_pi_lead": {
@@ -480,6 +556,21 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         out.latex = `y(0^+) = ${fmt(r.initial_value)},\\ y(\\infty) = ${fmt(r.final_value)}`;
         out.summary = [["y(0⁺) — initial value", plain(r.initial_value)], ["y(∞) — final value", plain(r.final_value)]];
         out.options = optionsText ? matchOptions({ value: r.final_value, kind: "NUMBER" }, optionsText) : null;
+        break;
+      }
+      case "matlab_time_response": {
+        out.matlab = matlabTimeResponse(inp.Gs, inp.input || "step", inp.U_custom || "");
+        out.note = "Run this in MATLAB for the closed-form y(t) (and its initial/final values).";
+        break;
+      }
+      case "matlab_linearize": {
+        out.matlab = matlabLinearize(inp.f, (inp.stateVar || "x").trim(), (inp.inputVar || "u").trim(), inp.point || "");
+        out.note = "Run this in MATLAB. Handles sin/√/exp; the comment shows the recipe for a higher-order ODE.";
+        break;
+      }
+      case "matlab_param_stability": {
+        out.matlab = matlabParamStability(inp.expr, (inp.param || "w").trim());
+        out.note = "Run this in MATLAB to get the stability region in the parameter.";
         break;
       }
       default:
@@ -678,6 +769,8 @@ export function analyzeNumeric(GstrIn) {
     zeros: guard(() => cplxList(G.zeros()) || "none", "none") || "none",
     initialValue: c.initial_value ?? null,
     finalValue: to.type > 0 ? Infinity : dc,
+    zeta: c.is_second_order ? (c.zeta ?? null) : null,
+    omega_n: c.is_second_order ? (c.omega_n ?? null) : null,
     bandwidth: guard(() => bandwidth(G), null),
     settling: settle ? settle.t_s_2pct : null,
     margins: m,

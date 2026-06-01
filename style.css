@@ -12,9 +12,68 @@
     --accent-purple: #a855f7;
     --accent-green: #10b981;
     --accent-red: #ef4444;
-    
+
+    /* Semantic status colours (match / warning / error) — promoted to
+       variables so the Exam theme can darken them for contrast on white. */
+    --ok: #10b981;
+    --warn: #f59e0b;
+    --err: #ef4444;
+
+    /* LCD1 Solver mode surfaces (the solver panel hard-codes these inline;
+       they now route through variables so the theme can flip them). */
+    --panel: rgba(30, 41, 59, 0.4);
+    --panel-strong: rgba(30, 41, 59, 0.6);
+    --inset: rgba(15, 23, 42, 0.6);
+    --switcher-bg: rgba(15, 23, 42, 0.85);
+    --switcher-active: linear-gradient(135deg, #3b82f6, #6366f1);
+
+    /* Plot colours (consumed by plot-svg.js at render time). */
+    --plot-axis: #64748b;
+    --plot-grid: rgba(148, 163, 184, 0.18);
+    --plot-text: #94a3b8;
+    --plot-fg: #e2e8f0;
+    --plot-bg: transparent;
+
     --font-outfit: 'Outfit', 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
     --font-inter: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+}
+
+/* =====================================================================
+ * EXAM UI — a sober, light "engineering tool" skin (MATLAB-like).
+ * Toggled by exam-theme.js via html[data-theme="exam"]. Strips gradients,
+ * glass blur and glow so the app reads as a standard desktop utility.
+ * ===================================================================== */
+html[data-theme="exam"] {
+    --bg-main: #f0f0f0;
+    --bg-surface: #ffffff;
+    --bg-card: #ffffff;
+    --border-color: #c8c8c8;
+    --text-primary: #1a1a1a;
+    --text-secondary: #555555;
+
+    --accent-blue: #0a64c2;
+    --accent-purple: #0a64c2;   /* collapse purple to one plain blue */
+    --accent-green: #1a7f4b;
+    --accent-red: #c62828;
+
+    --ok: #1a7f4b;
+    --warn: #b25e00;
+    --err: #c62828;
+
+    --panel: #ffffff;
+    --panel-strong: #f5f5f5;
+    --inset: #fbfbfb;
+    --switcher-bg: #ffffff;
+    --switcher-active: #0a64c2;
+
+    --plot-axis: #444444;
+    --plot-grid: rgba(0, 0, 0, 0.12);
+    --plot-text: #333333;
+    --plot-fg: #111111;
+    --plot-bg: #ffffff;
+
+    --font-outfit: 'Segoe UI', Tahoma, Arial, sans-serif;
+    --font-inter: 'Segoe UI', Tahoma, Arial, sans-serif;
 }
 
 * {
@@ -809,4 +868,154 @@ kbd:hover {
         opacity: 1;
         transform: scale(1);
     }
+}
+
+/* =====================================================================
+ * EXAM UI overrides — neutralize the "flashy" effects that variable
+ * swaps alone can't reach: gradient text, glass blur, glow shadows and
+ * lift/colour-flooded hovers. Keep everything flat and solid.
+ * ===================================================================== */
+html[data-theme="exam"] .panel-header h1,
+html[data-theme="exam"] .modal-header h3 {
+    background: none;
+    -webkit-background-clip: border-box;
+    -webkit-text-fill-color: var(--text-primary);
+    color: var(--text-primary);
+}
+
+/* Drop frosted-glass blur everywhere */
+html[data-theme="exam"] .canvas-header,
+html[data-theme="exam"] .modal-overlay,
+html[data-theme="exam"] .lcd-switcher {
+    backdrop-filter: none;
+}
+
+/* The canvas toolbar band + its inline-styled dropdowns (inline bg needs
+   !important to beat the element's style attribute). */
+html[data-theme="exam"] .canvas-header {
+    background: var(--bg-surface);
+}
+html[data-theme="exam"] .canvas-header select {
+    background: #ffffff !important;
+    color: var(--text-primary) !important;
+    border-color: var(--border-color) !important;
+}
+
+html[data-theme="exam"] .modal-overlay {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+/* Solid surfaces instead of translucent slate */
+html[data-theme="exam"] .form-group,
+html[data-theme="exam"] .template-item,
+html[data-theme="exam"] .saved-action,
+html[data-theme="exam"] .section-card,
+html[data-theme="exam"] .step-item,
+html[data-theme="exam"] .analysis-item,
+html[data-theme="exam"] .solution-math,
+html[data-theme="exam"] .btn-tool,
+html[data-theme="exam"] .btn-action,
+html[data-theme="exam"] .btn-copy,
+html[data-theme="exam"] .form-group input,
+html[data-theme="exam"] .canvas-header select {
+    background: var(--bg-surface);
+}
+
+html[data-theme="exam"] .step-item,
+html[data-theme="exam"] .analysis-item {
+    background: #f7f7f7;
+}
+
+/* Flatten glow shadows */
+html[data-theme="exam"] .modal-card {
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+}
+html[data-theme="exam"] .lcd-switcher {
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
+    border: 1px solid var(--border-color);
+}
+html[data-theme="exam"] kbd:hover,
+html[data-theme="exam"] .dropzone-container:hover,
+html[data-theme="exam"] .dropzone-container.dragover,
+html[data-theme="exam"] .resize-handle:hover,
+html[data-theme="exam"] .resize-handle.active,
+html[data-theme="exam"] .btn-copy {
+    box-shadow: none !important;
+}
+
+/* Subtle, flat hovers — no lift, no colour flood */
+html[data-theme="exam"] .btn-tool:hover,
+html[data-theme="exam"] kbd:hover {
+    transform: none;
+    background: #e8eef6 !important;
+    border-color: var(--accent-blue);
+}
+html[data-theme="exam"] .btn-action:hover {
+    background: #e8eef6;
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+html[data-theme="exam"] .btn-action.red:hover {
+    background: #fbe9e9;
+    border-color: var(--accent-red);
+    color: var(--accent-red);
+}
+html[data-theme="exam"] .btn-copy:hover {
+    transform: none;
+    background: #e8eef6;
+    border-color: var(--accent-blue);
+    color: var(--text-primary);
+}
+
+/* Keyboard-shortcut keycaps use an inline near-white background that
+   vanishes on white — give them a visible flat keycap instead. */
+html[data-theme="exam"] kbd {
+    background: #ececec !important;
+    border-color: #bdbdbd !important;
+    color: var(--text-primary) !important;
+    box-shadow: 0 1px 0 #bdbdbd !important;
+}
+
+/* Sidebar info cards carry an inline translucent-slate background; flatten
+   them to a plain light card on the exam theme. */
+html[data-theme="exam"] .section-card[style*="rgba(30, 41, 59"] {
+    background: #f5f5f5 !important;
+}
+
+/* Scrollbars readable on light */
+html[data-theme="exam"] ::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.22);
+}
+html[data-theme="exam"] ::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.35);
+}
+
+/* The exam-theme toggle button */
+.exam-toggle {
+    position: fixed;
+    top: 14px;
+    right: 14px;
+    z-index: 1001;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(12px);
+    border: 1px solid var(--border-color);
+    border-radius: 999px;
+    color: var(--text-secondary);
+    cursor: pointer;
+    font: 600 12px/1 var(--font-outfit);
+    padding: 8px 14px;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.4);
+    transition: color 0.15s, border-color 0.15s;
+}
+.exam-toggle:hover {
+    color: var(--text-primary);
+    border-color: var(--accent-blue);
+}
+html[data-theme="exam"] .exam-toggle {
+    background: #ffffff;
+    backdrop-filter: none;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, 0.2);
 }

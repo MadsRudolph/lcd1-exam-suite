@@ -99,6 +99,14 @@ test("extracts the plant across the common analysis question types", () => {
   }
 });
 
+test("dashboard read-outs expose ζ and ωₙ for a 2nd-order TF", () => {
+  const a = analyzeNumeric("2/(s^2+2*s+2)");   // closed loop of L=K/(s(s+√(2K))) at K=2
+  assert.ok(Math.abs(a.zeta - 0.70710678) < 1e-4, `ζ ≈ 0.707, got ${a.zeta}`);
+  assert.ok(Math.abs(a.omega_n - Math.SQRT2) < 1e-4, `ωₙ ≈ 1.414, got ${a.omega_n}`);
+  const b = analyzeNumeric("1/(s+1)");          // first order -> no ζ/ωₙ
+  assert.equal(b.zeta, null);
+});
+
 test("Smart Paste extracts a TF written with a unicode superscript (s²)", () => {
   const r = smartPaste("What is the DC gain in dB of G(s) = 12/(s²+5s+6)?\n1. 2\n2. 12\n3. 6");
   assert.ok(r.tf, "should extract a TF from s²+5s+6");
