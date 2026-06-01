@@ -313,6 +313,13 @@ function buildSmartPaste() {
   ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(fire, 150); });
 
   state.pasteBox = ta; state.pasteHint = hint;
+  // Let the Guide page open this box pre-filled with a sample question.
+  state.openPaste = (text) => {
+    panel.style.display = "block";
+    toggle.textContent = "▾ Paste an exam question";
+    ta.value = text;
+    runSmartPaste(text, hint);
+  };
   return wrap;
 }
 
@@ -429,6 +436,113 @@ function buildTfWidget() {
   return wrap;
 }
 
+// The interactive "How this app works" page. Collapsible sections with KaTeX
+// formulas and "Try it" buttons that load real examples straight into the
+// solver (via the state hooks set up in init).
+function buildGuide() {
+  const inner = el("div", { style: "max-width:880px;margin:0 auto;padding:0 24px;display:flex;flex-direction:column;gap:16px;" });
+
+  const head = el("div", {});
+  head.append(el("h1", { style: `margin:0;color:${TXT};font:800 26px 'Outfit',sans-serif;` }, "📖 How this app works"));
+  head.append(el("p", { style: `margin:8px 0 0;color:${SUB};font:400 14px/1.6 'Inter',sans-serif;` },
+    "One offline window for the DTU 34722 exam. Two tools — <b>draw a block diagram</b> or <b>paste/type a transfer function</b> — both lead to the flagged multiple-choice answer. Click any example below to load it straight into the solver."));
+  inner.append(head);
+
+  // Collapsible section card.
+  const section = (title, subtitle, open = false) => {
+    const wrap = el("div", { style: `background:#0e1830;border:1px solid ${BORDER};border-radius:12px;overflow:hidden;` });
+    const hd = el("button", { style: "width:100%;text-align:left;background:transparent;border:none;cursor:pointer;padding:14px 16px;display:flex;flex-direction:column;gap:3px;" });
+    const row = el("div", { style: `color:${TXT};font:700 15px 'Outfit';display:flex;justify-content:space-between;align-items:center;gap:10px;` });
+    row.append(el("span", {}, title));
+    const caret = el("span", { style: `color:${SUB};font:600 13px;` }, open ? "▾" : "▸");
+    row.append(caret);
+    hd.append(row);
+    if (subtitle) hd.append(el("div", { style: `color:${SUB};font:400 12px 'Inter';` }, subtitle));
+    const body = el("div", { style: `padding:0 16px 16px;display:${open ? "flex" : "none"};flex-direction:column;gap:10px;` });
+    hd.onclick = () => { const o = body.style.display === "none"; body.style.display = o ? "flex" : "none"; caret.textContent = o ? "▾" : "▸"; };
+    wrap.append(hd, body);
+    wrap._body = body;
+    return wrap;
+  };
+  const p = (html) => el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` }, html);
+  const formula = (latex) => { const d = el("div", { style: "margin:2px 0;color:#cbd5e1;" }); katex(d, latex, true); return d; };
+  const chipRow = () => el("div", { style: "display:flex;flex-wrap:wrap;gap:8px;margin-top:4px;" });
+  const chip = (label, onClick, green = false) => {
+    const c = green ? ["#6ee7b7", "rgba(16,185,129,0.16)", "rgba(16,185,129,0.4)"] : ["#a5b4fc", "rgba(99,102,241,0.16)", "rgba(99,102,241,0.4)"];
+    const b = el("button", { style: `background:${c[1]};color:${c[0]};border:1px solid ${c[2]};border-radius:999px;padding:7px 13px;font:600 12px 'Outfit',monospace;cursor:pointer;` }, label);
+    b.onclick = onClick;
+    return b;
+  };
+  const loadG = (tf) => () => { state.setMode("lcd"); state.setG(null, tf); };
+
+  // 1 — big picture
+  const s1 = section("The big picture", "From a problem to the answer in four steps", true);
+  s1._body.append(
+    p("1. <b>Get a transfer function</b> — draw the block diagram and reduce it, or type/paste G(s) directly."),
+    p("2. <b>Read the auto-computed results</b> — margins, poles, type/order, steady-state error, plots — they update live as you type."),
+    p("3. <b>Use a design or analysis tool</b> when the question asks for a gain K, a controller, a value at a frequency, or a time response."),
+    p("4. <b>Match the multiple-choice options</b> — paste them and the matching one is flagged ✓."),
+  );
+  inner.append(s1);
+
+  // 2 — block diagram
+  const s2 = section("◧ Block Diagram mode", "Draw a loop and reduce it to one transfer function");
+  s2._body.append(
+    p("Add Input / Output / Block / Sum / Disturbance from the sidebar and wire them up (hold <b>Shift</b> while dragging a wire to make a feedback tap). Set each block's value — numbers or symbols like K, a, τ — pick the Source and Sink, then <b>Solve Loop</b>."),
+    p("You get the simplified G(s), the open-loop L(s), the closed-loop Y/R, the disturbance response and the poles. Press <b>∑ Use in LCD1 Solver</b> to send the result to the solver."),
+  );
+  const r2 = chipRow(); r2.append(chip("Open Block Diagram mode →", () => state.setMode("bdr"), true));
+  s2._body.append(r2);
+  inner.append(s2);
+
+  // 3 — one box
+  const s3 = section("∑ LCD1 Solver — one box for everything", "Type a G(s); the whole board computes live");
+  s3._body.append(p("The System box takes numeric or symbolic transfer functions. Click one to load it:"));
+  const r3 = chipRow();
+  r3.append(
+    chip("12/((s+2)*(s+3))", loadG("12/((s+2)*(s+3))")),
+    chip("1/(s+1)**3", loadG("1/(s+1)**3")),
+    chip("K/(s*(s+a))", loadG("K/(s*(s+a))")),
+  );
+  s3._body.append(r3, p("The first is type-0 (read its DC gain and margins), the second shows the stable-K range and an 8× gain margin, and the third keeps K and a symbolic — the board then reports the closed-loop, type, order and ess <i>in symbols</i> and checks which option is algebraically equal."));
+  inner.append(s3);
+
+  // 4 — smart paste
+  const s4 = section("📋 Smart Paste — paste a whole exam question", "It pulls out the transfer function and the options for you");
+  s4._body.append(p("Paste a question straight from the PDF — garbled copy is fine. Smart Paste repairs the text, extracts G(s) and drops it in the box, lists the answer options, and hints at the question type. It <b>never auto-picks an answer</b>, so a mis-read can't masquerade as a confident wrong option."));
+  const sample = "A closed-loop system has a loop transfer function G(s) = K s(s + 2.1) and the Bode plot in Fig.3. What is the gain K so that the phase margin is PM = 40 degrees?\n1. K = 0.1\n2. K = 8.4\n3. K = 77.5\n4. K = 18.5";
+  const r4 = chipRow(); r4.append(chip("Try a sample question →", () => { state.setMode("lcd"); state.openPaste(sample); }, true));
+  s4._body.append(r4);
+  inner.append(s4);
+
+  // 5 — reading off plots
+  const s5 = section("Reading values off a plot", "Convert what you read into parameters — the formulas the tools use");
+  s5._body.append(
+    p("<b>Overshoot → damping.</b> Read the peak and steady values; with M<sub>p</sub> = (peak − steady)/steady:"),
+    formula("\\zeta = \\dfrac{-\\ln M_p}{\\sqrt{\\pi^2 + \\ln^2 M_p}}"),
+    p("<b>Period → frequency.</b> Read the oscillation period T off the time axis:"),
+    formula("\\omega_d = \\dfrac{2\\pi}{T}, \\qquad \\omega_n = \\dfrac{\\omega_d}{\\sqrt{1-\\zeta^2}}"),
+    p("<b>Final value.</b> The steady-state value or error without an inverse Laplace transform:"),
+    formula("y(\\infty) = \\lim_{s\\to 0} sF(s)"),
+    p("The <i>From a step-response plot</i> and <i>Initial / final value</i> calculators do these for you, and <i>Evaluate G(jω)</i> gives |G| and ∠G at any frequency — e.g. the plant phase φ<sub>G</sub> at ω<sub>c</sub> that a controller design needs."),
+  );
+  const r5 = chipRow(); r5.append(chip("Load 25/(s**2+3*s+25) and explore the tools →", loadG("25/(s**2+3*s+25)")));
+  s5._body.append(r5);
+  inner.append(s5);
+
+  // 6 — matching options
+  const s6 = section("Matching the multiple-choice options", "Green ✓ confident, amber ≈ plausible — never a blind guess");
+  s6._body.append(p("Paste the options into the matcher (or let Smart Paste fill them). The read-outs, the design goals and the calculators all compare their result to your options and flag the match. Magnitudes given in dB are matched in the right units, and an answer that is close to nothing stays unflagged rather than guessing."));
+  inner.append(s6);
+
+  // 7 — updates
+  const s7 = section("Keeping it updated", "Self-updates from GitHub; fully offline otherwise");
+  s7._body.append(p("Click <b>Check for Updates</b> in the Block Diagram sidebar — it runs git pull, rebuilds and reloads, so new features appear without re-downloading. Nothing else ever touches the internet, so it is safe to use in the exam."));
+  inner.append(s7);
+
+  return inner;
+}
+
 function init() {
   // ---- floating switcher ----
   const bar = el("div", { style:
@@ -436,10 +550,10 @@ function init() {
     `background:rgba(15,23,42,0.85);backdrop-filter:blur(12px);border:1px solid ${BORDER};border-radius:999px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);` });
   const mkTab = (t) => el("button", { style:
     `border:none;background:transparent;color:${SUB};font:600 12px/1 'Outfit',sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;transition:all .15s;` }, t);
-  const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver");
+  const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver"), tabGuide = mkTab("📖 Guide");
   const ver = el("span", { title: "App version (updates on Check for Updates)", style:
     `align-self:center;color:${SUB};font:600 10px 'Outfit',sans-serif;padding:0 8px 0 4px;opacity:.7;` }, VERSION);
-  bar.append(tabBDR, tabLCD, ver);
+  bar.append(tabBDR, tabLCD, tabGuide, ver);
   document.body.appendChild(bar);
 
   // ---- panel ----
@@ -497,19 +611,32 @@ function init() {
   panel.append(left);
   document.body.appendChild(panel);
 
+  // ---- guide page (full-screen overlay, scrolls) ----
+  const guide = el("div", { id: "lcd-guide", style:
+    "position:fixed;inset:0;z-index:900;display:none;overflow:auto;" +
+    "background:var(--bg-primary,#0f172a);padding:70px 0 48px 0;" });
+  guide.append(buildGuide());
+  document.body.appendChild(guide);
+
   // ---- behaviour ----
   const appContainer = document.querySelector(".app-container");
-  const setMode = (lcd) => {
-    panel.style.display = lcd ? "grid" : "none";
-    if (appContainer) appContainer.style.visibility = lcd ? "hidden" : "visible";
-    tabLCD.style.background = lcd ? "linear-gradient(135deg,#3b82f6,#6366f1)" : "transparent";
-    tabLCD.style.color = lcd ? "#fff" : SUB;
-    tabBDR.style.background = lcd ? "transparent" : "linear-gradient(135deg,#3b82f6,#6366f1)";
-    tabBDR.style.color = lcd ? SUB : "#fff";
+  const ACTIVE = "linear-gradient(135deg,#3b82f6,#6366f1)";
+  // Accepts a mode string ('bdr'|'lcd'|'guide'); true/false kept for old callers.
+  const setMode = (m) => {
+    const mode = m === true ? "lcd" : m === false ? "bdr" : m;
+    panel.style.display = mode === "lcd" ? "grid" : "none";
+    guide.style.display = mode === "guide" ? "block" : "none";
+    if (appContainer) appContainer.style.visibility = mode === "bdr" ? "visible" : "hidden";
+    for (const [tab, name] of [[tabBDR, "bdr"], [tabLCD, "lcd"], [tabGuide, "guide"]]) {
+      tab.style.background = mode === name ? ACTIVE : "transparent";
+      tab.style.color = mode === name ? "#fff" : SUB;
+    }
+    if (mode === "guide") guide.scrollTop = 0;
   };
-  tabBDR.onclick = () => setMode(false);
-  tabLCD.onclick = () => setMode(true);
-  setMode(false);
+  tabBDR.onclick = () => setMode("bdr");
+  tabLCD.onclick = () => setMode("lcd");
+  tabGuide.onclick = () => setMode("guide");
+  setMode("bdr");
 
   // ---- Block Diagram -> LCD1 bridge ----
   state.setMode = setMode;
