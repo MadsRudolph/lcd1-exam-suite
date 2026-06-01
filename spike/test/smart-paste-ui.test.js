@@ -4,7 +4,7 @@
 // can't surface as a confident wrong letter (the B4 failure mode).
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { smartPaste, runSolver } from "../../lcd-engine.js";
+import { smartPaste, runSolver, analyzeNumeric } from "../../lcd-engine.js";
 
 test("reads a numeric loop TF and the options straight from the question", () => {
   const r = smartPaste(
@@ -97,6 +97,17 @@ test("extracts the plant across the common analysis question types", () => {
     assert.equal(r.tf, tf, text);
     assert.equal(r.intent.fn, fn, text);
   }
+});
+
+test("phase margin is reported in (-180, 180] (a type-2 plant reads negative)", () => {
+  const a = analyzeNumeric("5*(s+4)/(s**2*(s+1)*(s+20))");
+  assert.ok(a.margins.PM_deg > -180 && a.margins.PM_deg <= 180, `PM in range, got ${a.margins.PM_deg}`);
+  assert.ok(Math.abs(a.margins.PM_deg - -31.4) < 0.5, `PM ≈ -31.4, got ${a.margins.PM_deg}`);
+});
+
+test("'choose K so Mp ≤ …' points at the K-for-transient-spec goal", () => {
+  const r = smartPaste("Choose the gain K so that the overshoot is 12%. The loop gain is G(s) = K/(s(s+5)).");
+  assert.equal(r.intent.fn, "solve_K_for_spec");
 });
 
 test("empty input yields an all-null result, no throw", () => {

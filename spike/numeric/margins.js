@@ -91,6 +91,15 @@ function gainCrossoverFreq(tf, omegas = logspace(-3, 5, 4000)) {
   return NaN;
 }
 
+// Wrap an angle in degrees to the (-180, 180] convention.
+function wrapDeg(x) {
+  if (!Number.isFinite(x)) return x;
+  let w = x % 360;
+  if (w > 180) w -= 360;
+  else if (w <= -180) w += 360;
+  return w;
+}
+
 export function solveMargins(tf) {
   const omegas = logspace(-3, 5, 4000);
   const { GM } = gainMargin(tf, omegas);
@@ -100,7 +109,7 @@ export function solveMargins(tf) {
   let PM_deg = Infinity;
   if (Number.isFinite(omega_gc)) {
     const phase = (Gjw(tf, omega_gc).arg() * 180) / Math.PI;
-    PM_deg = 180 + phase;
+    PM_deg = wrapDeg(180 + phase); // report in (-180, 180] so e.g. 328.6 reads as -31.4
   }
   return {
     GM,

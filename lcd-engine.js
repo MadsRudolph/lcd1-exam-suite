@@ -110,6 +110,12 @@ export function smartPaste(textIn) {
   try { routed = parseQuestion(text); } catch { routed = null; }
   if (routed && INTENT_GUIDE[routed.solver_function]) {
     out.intent = { fn: routed.solver_function, ...INTENT_GUIDE[routed.solver_function] };
+    // "Choose K so Mp ≤ …" is a design (K boundary) question, not a metric read-out —
+    // point at the K-for-transient-spec goal rather than the closed-loop calculator.
+    if (routed.solver_function === "solve_closed_loop_2nd_order" && routed.match_key === "K") {
+      out.intent = { fn: "solve_K_for_spec", label: "K for a transient spec",
+        hint: "Open the Design strip → “K for transient spec” and enter the loop gain G(s,K) and the Mp/ζ bound." };
+    }
   }
 
   // 2. Extract a system G(s). Preference: an explicit numeric TF, then a loop
