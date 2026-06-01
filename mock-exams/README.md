@@ -55,4 +55,4 @@ via `node spike/cli.js …`).
 | 15 | Linearize nonlinear ODE → TF | compute (un-built gap) | by hand + `tf` |
 | 16 | Conceptual true/false | conceptual (gap) | reason |
 
-See `../docs/stress-test-1-findings.md` for the per-question stress-test results.
+See `../docs/archive/stress-test-1-findings.md` for the per-question stress-test results.

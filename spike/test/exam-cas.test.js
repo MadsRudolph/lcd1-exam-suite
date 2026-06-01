@@ -1,5 +1,5 @@
 // Acceptance tests derived from real LCD1 past-exam questions
-// (docs/cas-engine-requirements.md §3). Each row that can be faithfully
+// (docs/archive/cas-engine-requirements.md §3). Each row that can be faithfully
 // reconstructed from its "Given" column is asserted two ways:
 //   1. symbolic — the CAS result is algebraically equal to the exam answer key
 //      (N1·D2 − N2·D1 ≡ 0, via SymTF.sub().simplify().isZero());

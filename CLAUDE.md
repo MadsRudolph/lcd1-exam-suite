@@ -3,16 +3,20 @@
 This repo is **one unified, 100% offline desktop app** for the DTU 34722 Linear Control
 Design 1 exam, merging two existing tools. **Status: merged app built** — BDR Electron shell at the
 repo root with an LCD1 Solver mode (`lcd-solver-ui.js` + `lcd-engine.js`) over the JS solver engine in
-`spike/`. All P1–P7 solvers are ported and parity-checked against the 70-test oracle (`npm test` → 94
-passing). Run with `npm install && npm run build && npm start`.
+`spike/`. All P1–P7 solvers are ported and parity-checked against the 70-test oracle (`npm test`).
+Run with `npm install && npm run build && npm start`.
+
+> **Dev history is archived** under [`docs/archive/`](docs/archive/) — HANDOFF, the questionnaire,
+> specs/plans, and stress-test findings now live there.
 
 > **Stress-test session?** If you were started to generate a mock exam and stress-test the solver, read
-> **[`docs/mock-exam-stress-test-handoff.md`](docs/mock-exam-stress-test-handoff.md)** — it's the brief
-> for that work. Skip the merge-history first-actions below.
+> **[`docs/archive/mock-exam-stress-test-handoff.md`](docs/archive/mock-exam-stress-test-handoff.md)** —
+> it's the brief for that work. Skip the merge-history first-actions below.
 
 ## ▶️ FIRST ACTIONS for a fresh session
 
-1. **Read [`HANDOFF.md`](HANDOFF.md) in full**, then [`docs/block-diagram-reducer-questionnaire.md`](docs/block-diagram-reducer-questionnaire.md).
+1. **Read [`docs/archive/HANDOFF.md`](docs/archive/HANDOFF.md) in full**, then
+   [`docs/archive/block-diagram-reducer-questionnaire.md`](docs/archive/block-diagram-reducer-questionnaire.md).
    The handoff is the master plan; the questionnaire is the Block Diagram Reducer's builder explaining
    exactly what it made.
 2. **Clone the two source repos** (as siblings to this one) and run both to see what they do:

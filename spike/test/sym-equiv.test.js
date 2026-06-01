@@ -73,7 +73,7 @@ test("canonical form is reported for the reference", () => {
   assert.ok(res.canonicalLatex.includes("frac"));
 });
 
-// Regression for docs/equiv-stress-findings.md: comparing the keyed reference
+// Regression for docs/archive/equiv-stress-findings.md: comparing the keyed reference
 // against a *different* multi-symbol distractor must terminate (no multivariate-GCD
 // blow-up) and verdict no_match. These hung >90s before the GCD-free equality fix.
 test("termination: E21 Q2 reference vs distractor (shared denominator) → no_match, fast", () => {

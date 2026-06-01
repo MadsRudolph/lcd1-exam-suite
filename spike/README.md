@@ -73,4 +73,4 @@ block-reducer (`p1_block_reduce.py`) — BDR's graphical reducer replaces it in 
 | Option matching | ✅ | NUMBER/DICT/TF/PICK + stable-range flagging |
 | Smart Paste (route + extract) | ✅ | garbled-PDF TF reconstruction |
 
-See [`../docs/js-port-fidelity-spike.md`](../docs/js-port-fidelity-spike.md) for the fidelity write-up.
+See [`../docs/archive/js-port-fidelity-spike.md`](../docs/archive/js-port-fidelity-spike.md) for the fidelity write-up.

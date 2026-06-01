@@ -24,12 +24,12 @@ routed solution with the matching multiple-choice option flagged.
 ## Verify the math
 
 ```bash
-npm test           # 74 solver parity tests (node:test, zero deps)
+npm test           # full test suite — 326 tests (node:test, zero deps)
 ```
 
 Every solver is checked against the Python oracle (`lcd1-solver/tests/`, 70/70 passing). See
-[`docs/js-port-fidelity-spike.md`](docs/js-port-fidelity-spike.md) for the fidelity write-up and
-[`spike/README.md`](spike/README.md) for the engine layout and the standalone CLI.
+[`docs/archive/js-port-fidelity-spike.md`](docs/archive/js-port-fidelity-spike.md) for the fidelity
+write-up and [`spike/README.md`](spike/README.md) for the engine layout and the standalone CLI.
 
 ## Layout
 
@@ -37,12 +37,16 @@ Every solver is checked against the Python oracle (`lcd1-solver/tests/`, 70/70 p
 main.js · preload.js · index.html · style.css   Electron shell (from Block Diagram Reducer)
 app.js · canvas.js · solver.js · math-engine.js  BDR renderer + symbolic engine
 lcd-solver-ui.js · lcd-engine.js                 LCD1 Solver mode (UI + dispatch)
-spike/                                            validated JS solver engine + parity tests + CLI
-docs/                                             HANDOFF, questionnaire, fidelity report
+lcd-tf-helpers.js · plot-svg.js                  TF-builder / MATLAB export + SVG plots
+spike/ · symbolic/                               validated JS solver engine, CAS, parity tests, CLI
+docs/archive/                                    development history (specs, plans, stress findings)
 ```
 
 ## Background
 
-- **[`HANDOFF.md`](HANDOFF.md)** — the integration plan and the architecture decision (JS port).
-- **[`docs/block-diagram-reducer-questionnaire.md`](docs/block-diagram-reducer-questionnaire.md)** —
-  the Block Diagram Reducer's architecture in its builder's own words.
+Development history lives in [`docs/archive/`](docs/archive/):
+
+- **[`docs/archive/HANDOFF.md`](docs/archive/HANDOFF.md)** — the integration plan and the
+  architecture decision (JS port).
+- **[`docs/archive/block-diagram-reducer-questionnaire.md`](docs/archive/block-diagram-reducer-questionnaire.md)**
+  — the Block Diagram Reducer's architecture in its builder's own words.
