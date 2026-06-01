@@ -46,6 +46,21 @@ test("matlabForPlot converts ** to ^ and maps each tab to its command", () => {
   assert.match(matlabForPlot("1/s", "Pole-Zero"), /pzmap\(G\);/);
 });
 
+test("matlabForPlot inserts explicit * where the app allows juxtaposition (MATLAB needs it)", () => {
+  // coefficient * s
+  assert.match(matlabForPlot("12/(s^2+5s+6)", "Bode"), /G = 12\/\(s\^2\+5\*s\+6\);/);
+  // back-to-back factors and number*paren, with spaces preserved around
+  assert.match(matlabForPlot("(10)/(s^2 + 2s + 20)", "Bode"), /G = \(10\)\/\(s\^2 \+ 2\*s \+ 20\);/);
+  // identifier immediately before a paren, and factor)(factor
+  assert.match(matlabForPlot("s(s+2.1)", "Step"), /G = s\*\(s\+2\.1\);/);
+  assert.match(matlabForPlot("12/((s+2)(s+3))", "Bode"), /G = 12\/\(\(s\+2\)\*\(s\+3\)\);/);
+});
+
+test("matlabForPlot leaves already-explicit multiplication untouched", () => {
+  assert.match(matlabForPlot("12/((s+2)*(s+3))", "Bode"), /G = 12\/\(\(s\+2\)\*\(s\+3\)\);/);
+  assert.match(matlabForPlot("K/(s*(s+a))", "Bode"), /G = K\/\(s\*\(s\+a\)\);/);
+});
+
 test("matlabForPlot emits a commented parameter block for symbolic TFs", () => {
   const code = matlabForPlot("K/(s*(s+a))", "Bode");
   assert.match(code, /% set your parameter values/);

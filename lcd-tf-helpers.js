@@ -43,6 +43,20 @@ export function tfSymbols(src) {
   return [...set];
 }
 
+// The app's parser allows implicit multiplication (5s, 2s, (s+2)(s+3), s(s+2)),
+// but MATLAB rejects it ("Unexpected 's'. Check for missing multiplication
+// operator."). Insert an explicit '*' at every juxtaposition boundary so the
+// emitted code runs. '**' is first folded to MATLAB's '^'.
+export function toMatlabExpr(src) {
+  return String(src)
+    .trim()
+    .replace(/\*\*/g, "^")
+    .replace(/\)\s*\(/g, ")*(")                  // (…)(…)  -> (…)*(…)
+    .replace(/([0-9.])\s*([A-Za-z(])/g, "$1*$2") // 2s, 1.5s, 2(  -> 2*s, 1.5*s, 2*(
+    .replace(/\)\s*([A-Za-z0-9.])/g, ")*$1")     // )s, )2  -> )*s, )*2
+    .replace(/([A-Za-z_]\w*)\s*\(/g, "$1*(");    // s(…), a(…)  -> s*(…), a*(…)
+}
+
 const PLOT_CMD = {
   Step: { comment: "Step response", cmd: "step(G);" },
   Bode: { comment: "Bode magnitude and phase", cmd: "bode(G);" },
@@ -55,7 +69,7 @@ const PLOT_CMD = {
 // once the student fills in real values.
 export function matlabForPlot(src, tab) {
   const plot = PLOT_CMD[tab] || PLOT_CMD.Bode;
-  const matlabSrc = String(src).trim().replace(/\*\*/g, "^");
+  const matlabSrc = toMatlabExpr(src);
   const syms = tfSymbols(matlabSrc);
   const lines = ["% Transfer function G(s)"];
   if (syms.length) {
