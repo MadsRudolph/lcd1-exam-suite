@@ -22,6 +22,7 @@ import { solveForSymbol } from "./symbolic/solve-symbol.js";
 import { linearizeFirstOrder } from "./symbolic/linearize.js";
 import { feedback } from "./symbolic/combinators.js";
 import { renderSymTF } from "./symbolic/render.js";
+import { RatFunc } from "./symbolic/ratfunc.js";
 import { formByFn } from "./lcd-forms.js";
 
 // A RatFunc → readable string (denominator is 1 after normalization for a polynomial).
@@ -400,16 +401,35 @@ export function analyzeSymbolic(Gstr) {
     const needsDParen = ds.includes("+") || ds.includes("-");
     return `${needsNParen ? `(${ns})` : ns} / ${needsDParen ? `(${ds})` : ds}`;
   };
-  const cl = safe(() => renderSymTF(feedback(L)).toFormulaString());
-  return {
+  const num = L.num, den = L.den;
+  const tN = num.length - 1, tD = den.length - 1;
+
+  // Cheap, simplification-free "system" read-outs (no multivariate GCD) — these
+  // are instant on any input and answer the common system questions directly.
+  let type = 0; while (type < den.length && den[type].isZero()) type++;
+  const out = {
     error: null,
-    closedLoop: cl,
-    type: safe(() => systemType(L)),
-    order: safe(() => symOrder(L)),
-    K0: safe(() => symStr(staticGain(L))),
-    essStep: safe(() => symStr(essStep(L))),
-    essRamp: safe(() => symStr(essRamp(L))),
+    interpreted: safe(() => renderSymTF(L).toFormulaString()),
+    // y(0⁺) = lim_{s→∞}G (leading-coeff ratio); G(0) = y(∞) for a unit step.
+    dcGain: safe(() => (den[0].isZero() ? "∞" : symStr(new RatFunc(num[0], den[0])))),
+    initialValue: safe(() => (tN < tD ? "0" : tN > tD ? "∞" : symStr(new RatFunc(num[tN], den[tD])))),
+    type,
+    order: tD,
+    closedLoop: null, K0: null, essStep: null, essRamp: null, loopHeavy: false,
   };
+
+  // The "loop gain" read-outs need symbolic simplification (closed loop doubles
+  // the degree, then a multivariate GCD runs). That blows up on large, many-
+  // parameter TFs and would freeze the synchronous UI on every keystroke — so
+  // gate them: only compute when the TF is small enough to stay snappy.
+  const nSym = new Set([...num, ...den].flatMap((m) => [...m.vars()])).size;
+  if (nSym > 2 && tD > 2) { out.loopHeavy = true; return out; }
+
+  out.closedLoop = safe(() => renderSymTF(feedback(L)).toFormulaString());
+  out.K0 = safe(() => symStr(staticGain(L)));
+  out.essStep = safe(() => symStr(essStep(L)));
+  out.essRamp = safe(() => symStr(essRamp(L)));
+  return out;
 }
 
 export function analyzeNumeric(Gstr) {

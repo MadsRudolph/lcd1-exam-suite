@@ -61,3 +61,10 @@ test("analyzeSymbolic of K/(s*(s+a)): closed-loop K/(s^2+as+K), type 1", () => {
   assert.equal(a.essStep, "0");
   assert.equal(a.essRamp.replace(/\s+/g, ""), "a/K");
 });
+
+test("analyzeSymbolic reports y(0⁺) and G(0) for the E25 IVT TF (typed with ** and glued s)", () => {
+  const a = analyzeSymbolic("(1.5s**3+a2s**2+a1s-1)/(s**3+b2s**2+b1*s+1)");
+  assert.equal(a.error, null);
+  assert.equal(a.initialValue, "3/2"); // y(0⁺) = leading-coeff ratio 1.5/1
+  assert.equal(a.dcGain, "-1");        // G(0) = y(∞) = -1/1
+});
