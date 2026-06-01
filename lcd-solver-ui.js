@@ -571,8 +571,17 @@ function buildGuide() {
 
   // 7 — updates
   const s7 = section("Keeping it updated", "Self-updates from GitHub; fully offline otherwise");
-  s7._body.append(p("Click <b>Check for Updates</b> in the Block Diagram sidebar — it runs git pull, rebuilds and reloads, so new features appear without re-downloading. Nothing else ever touches the internet, so it is safe to use in the exam."));
+  s7._body.append(p("Click <b>Check for Updates</b> in the Block Diagram sidebar — it runs git pull, rebuilds and reloads, so new features appear without re-downloading. Nothing else ever touches the internet."));
   inner.append(s7);
+
+  // Disclaimer — always visible, deliberately not collapsible.
+  const disc = el("div", { style: "background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.4);border-radius:12px;padding:14px 16px;display:flex;flex-direction:column;gap:8px;" });
+  disc.append(el("div", { style: "color:#fcd34d;font:700 15px 'Outfit';" }, "⚠️ Disclaimer — exam rules are your responsibility"));
+  disc.append(el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` },
+    "This is a free, educational study aid provided <b>as is</b>, with no guarantee its results are correct. Whether any tool or aid may be used in an exam, test or assignment is decided solely by the rules of your course, examiner and institution — and those rules vary and change."));
+  disc.append(el("p", { style: `margin:0;color:${SUB};font:400 13px/1.6 'Inter';` },
+    "It is <b>your own responsibility</b> to confirm from the official rules and the examiner whether using this (or any aid) is permitted in your specific assessment. Using it where it is not allowed is entirely at your own risk. The author accepts <b>no responsibility or liability</b> for any consequences of anyone's use or misuse of this tool."));
+  inner.append(disc);
 
   return inner;
 }

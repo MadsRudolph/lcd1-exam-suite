@@ -14,6 +14,24 @@ self-updating bundle that runs with no internet connection.
 
 ---
 
+## ⚠️ Disclaimer — please read
+
+This is a **free, educational study aid, provided "as is"** with no guarantee that its results are
+correct or complete (see [`LICENSE`](LICENSE)).
+
+**Whether any tool or aid may be used in an exam, test or assignment is decided solely by the rules of
+your course, examiner and institution — and those rules vary and change.** It is **your own
+responsibility** to confirm, in advance and from the official rules and the examiner, whether using
+this software (or any aid) is permitted in your specific assessment.
+
+Publishing this project does not endorse or instruct using it where it is not allowed. **Using it in a
+setting where it is not permitted is entirely at your own risk.** The author accepts **no responsibility
+or liability** for any consequences — including academic-integrity proceedings, disqualification,
+failure or other penalties — arising from anyone's use or misuse of this tool. By using it you accept
+full responsibility for how, where and whether you use it.
+
+---
+
 ## Download & install
 
 The app runs on **Windows and macOS** (and Linux). It is an [Electron](https://www.electronjs.org/)
