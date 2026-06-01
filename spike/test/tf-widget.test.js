@@ -31,20 +31,32 @@ test("tfSymbols lists parameters but never s", () => {
   assert.deepEqual(tfSymbols("12/((s+2)*(s+3))"), []);
 });
 
-test("matlabForPlot builds a numeric Bode snippet with margins and crossovers", () => {
+test("matlabForPlot Bode: margins to the terminal, legend explains the dashed lines", () => {
   const code = matlabForPlot("12/((s+2)*(s+3))", "Bode");
   assert.match(code, /s = tf\('s'\);/);
   assert.match(code, /G = 12\/\(\(s\+2\)\*\(s\+3\)\);/);
-  assert.match(code, /margin\(G\);/);          // Bode drawn with GM/PM + crossovers
+  assert.match(code, /bode\(G\);/);
   assert.match(code, /\[Gm, Pm, Wpc, Wgc\] = margin\(G\);/);
   assert.match(code, /bandwidth\(G\)/);
   assert.match(code, /grid on;/);
-  assert.match(code, /legend\(sprintf\(/);     // margins/crossovers shown as a legend
+  assert.match(code, /fprintf\(/);                       // numbers printed to the terminal
+  assert.match(code, /legend\(\[h1 h2\]/);               // legend built from the dashed-line handles
+  assert.match(code, /gain crossover/);                  // legend explains what a line is
 });
 
-test("matlabForPlot shows the plot metrics as a legend on every tab", () => {
+test("matlabForPlot prints the read-outs to the terminal on every tab", () => {
+  assert.match(matlabForPlot("1/s", "Step"), /fprintf\(/);
+  assert.match(matlabForPlot("1/s", "Bode"), /fprintf\(/);
+  assert.match(matlabForPlot("1/s", "Nyquist"), /fprintf\(/);
+  assert.match(matlabForPlot("1/s", "Pole-Zero"), /disp\(/);
+});
+
+test("matlabForPlot gives every tab a legend that explains its reference line/marker", () => {
+  assert.match(matlabForPlot("1/s", "Step"), /legend\(.*\n?.*'final value'|legend\(\[h1 h2\]/);
+  assert.match(matlabForPlot("1/s", "Nyquist"), /-1 critical point/);
+  assert.match(matlabForPlot("1/s", "Pole-Zero"), /stability boundary/);
   for (const tab of ["Step", "Bode", "Nyquist", "Pole-Zero"]) {
-    assert.match(matlabForPlot("12/((s+2)*(s+3))", tab), /legend\(/, `${tab} has a legend`);
+    assert.match(matlabForPlot("1/s", tab), /legend\(/, `${tab} has a legend`);
   }
 });
 

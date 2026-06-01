@@ -61,33 +61,59 @@ export function toMatlabExpr(src) {
 // solver annotates (margins, crossovers, bandwidth, transient metrics, the
 // s-plane grid) — using MATLAB's own analysis commands so the snippet is
 // self-contained and recomputes everything from G.
+// Each block: draw the plot, print the numeric read-outs to the terminal, then
+// add labelled dashed reference lines (or markers) whose legend explains what
+// they represent — mirroring the solver's on-plot legend.
 const PLOT_BLOCK = {
   Step: [
-    "% Step response; transient metrics shown as a legend",
+    "% Step response — metrics to the terminal, legend explains the dashed lines",
     "step(G);",
     "grid on;",
+    "hold on;",
     "S = stepinfo(G);",
-    "legend(sprintf('overshoot %.3g %%,  t_p %.3g s,  t_s %.3g s (2%%)', S.Overshoot, S.PeakTime, S.SettlingTime), 'Location', 'southeast');",
+    "yf = dcgain(G);",
+    "fprintf('Overshoot = %.4g %%\\n', S.Overshoot);",
+    "fprintf('Peak time = %.4g s\\n', S.PeakTime);",
+    "fprintf('Settling time (2%%) = %.4g s\\n', S.SettlingTime);",
+    "fprintf('Final value = %.4g\\n', yf);",
+    "h1 = yline(yf, '--', 'DisplayName', 'final value');",
+    "h2 = xline(S.SettlingTime, '--', 'Color', [0.66 0.49 0.93], 'DisplayName', 't_s (2% settling)');",
+    "legend([h1 h2], 'Location', 'southeast');",
+    "hold off;",
   ],
   Bode: [
-    "% Bode plot; gain/phase margins, crossovers and bandwidth shown as a legend",
-    "margin(G);",
+    "% Bode plot — margins to the terminal, legend explains the dashed lines",
+    "bode(G);",
     "grid on;",
     "[Gm, Pm, Wpc, Wgc] = margin(G);",
-    "legend(sprintf('GM = %.3g dB,  PM = %.3g deg,  \\\\omega_c = %.3g,  \\\\omega_\\\\pi = %.3g,  BW = %.3g rad/s', 20*log10(Gm), Pm, Wgc, Wpc, bandwidth(G)), 'Location', 'southwest');",
+    "fprintf('GM = %.4g dB at w_pi = %.4g rad/s (phase crossover)\\n', 20*log10(Gm), Wpc);",
+    "fprintf('PM = %.4g deg at w_c = %.4g rad/s (gain crossover)\\n', Pm, Wgc);",
+    "fprintf('Bandwidth = %.4g rad/s\\n', bandwidth(G));",
+    "h1 = xline(Wgc, '--', 'Color', [0.06 0.72 0.51], 'DisplayName', '\\omega_c (gain crossover)');",
+    "h2 = xline(Wpc, '--', 'Color', [0.96 0.62 0.04], 'DisplayName', '\\omega_\\pi (phase crossover)');",
+    "legend([h1 h2], 'Location', 'best');",
   ],
   Nyquist: [
-    "% Nyquist plot; the -1 point sets the margins, shown as a legend",
+    "% Nyquist plot — margins to the terminal, legend marks the -1 point",
     "nyquist(G);",
     "grid on;",
+    "hold on;",
     "[Gm, Pm] = margin(G);",
-    "legend(sprintf('GM = %.3g dB,  PM = %.3g deg', 20*log10(Gm), Pm), 'Location', 'best');",
+    "fprintf('GM = %.4g dB, PM = %.4g deg\\n', 20*log10(Gm), Pm);",
+    "h1 = plot(-1, 0, 'r+', 'MarkerSize', 10, 'LineWidth', 1.5, 'DisplayName', '-1 critical point');",
+    "legend(h1, 'Location', 'best');",
+    "hold off;",
   ],
   "Pole-Zero": [
-    "% Pole-zero map with the damping / natural-frequency grid",
+    "% Pole-zero map — poles/zeros to the terminal, legend marks the jw axis",
     "pzmap(G);",
     "sgrid;",
-    "legend(sprintf('%d poles, %d zeros  (stable if every pole has Re < 0)', length(pole(G)), length(zero(G))), 'Location', 'best');",
+    "hold on;",
+    "fprintf('poles =\\n'); disp(pole(G));",
+    "fprintf('zeros =\\n'); disp(zero(G));",
+    "h1 = xline(0, '--', 'Color', [0.06 0.72 0.51], 'DisplayName', 'j\\omega axis (stability boundary)');",
+    "legend(h1, 'Location', 'best');",
+    "hold off;",
   ],
 };
 
