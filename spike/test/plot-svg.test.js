@@ -40,6 +40,14 @@ test("bodePlot returns two stacked svg panels", () => {
   assert.ok(/Phase/.test(svg), "phase panel labelled");
 });
 
+test("plots carry a legend explaining the dashed crossover lines", () => {
+  const bsvg = bodePlot(bode, { GM_dB: 7.6, PM_deg: 23, omega_pc: 1.7, omega_gc: 1.1, omega_BW: 2 });
+  assert.ok(/gain crossover/.test(bsvg), "bode legends ω_c");
+  assert.ok(/phase crossover/.test(bsvg), "bode legends ω_π");
+  assert.ok(/bandwidth/.test(bsvg), "bode legends ω_BW");
+  assert.ok(/poles/.test(poleZeroPlot(pz)) && /zeros/.test(poleZeroPlot(pz)), "pole-zero legend");
+});
+
 test("nyquistPlot marks the -1 point and shows a verdict", () => {
   const svg = nyquistPlot(nyq, { stable: true, encirclements: 0 });
   assert.ok(svg.includes("<svg"));

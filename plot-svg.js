@@ -33,7 +33,9 @@ function makeScale(values, lo, hi, log) {
  */
 export function linePlot(opts) {
   const W = opts.width || 460, H = opts.height || 280;
-  const m = { l: 52, r: 16, t: opts.title ? 26 : 12, b: 38 };
+  const legend = (opts.legend || []).filter(Boolean);
+  const legH = legend.length ? 16 : 0;
+  const m = { l: 52, r: 16, t: opts.title ? 26 : 12, b: 38 + legH };
   const pl = m.l, pr = W - m.r, pt = m.t, pb = H - m.b;
   const log = opts.xScale === "log";
 
@@ -66,7 +68,27 @@ export function linePlot(opts) {
     parts.push(`<text x="${pl - 6}" y="${gy + 3}" fill="${COL.text}" font-size="9" text-anchor="end">${fmtTick(yv)}</text>`);
   }
   parts.push(`<rect x="${pl}" y="${pt}" width="${pr - pl}" height="${pb - pt}" fill="none" stroke="${COL.axis}"/>`);
-  if (opts.xLabel) parts.push(`<text x="${(pl + pr) / 2}" y="${H - 4}" fill="${COL.text}" font-size="10" text-anchor="middle">${escapeXml(opts.xLabel)}</text>`);
+  if (opts.xLabel) parts.push(`<text x="${(pl + pr) / 2}" y="${H - 4 - legH}" fill="${COL.text}" font-size="10" text-anchor="middle">${escapeXml(opts.xLabel)}</text>`);
+
+  // Legend strip along the bottom: short swatch (solid/dashed line, or a marker
+  // glyph) + label, explaining each colour on the plot.
+  if (legH) {
+    const estW = (it) => (it.marker ? 12 : 18) + it.label.length * 5 + 10;
+    const total = legend.reduce((w, it) => w + estW(it), 0);
+    let lx = Math.max(6, (W - total) / 2);
+    const ly = H - 5;
+    for (const it of legend) {
+      if (it.marker) {
+        parts.push(`<text x="${(lx + 5).toFixed(1)}" y="${(ly + 1).toFixed(1)}" fill="${escapeXml(it.color)}" font-size="11" font-family="monospace" text-anchor="middle">${escapeXml(it.marker)}</text>`);
+      } else {
+        const d = it.dash ? ` stroke-dasharray="4 3"` : "";
+        parts.push(`<line x1="${lx.toFixed(1)}" y1="${(ly - 3).toFixed(1)}" x2="${(lx + 14).toFixed(1)}" y2="${(ly - 3).toFixed(1)}" stroke="${escapeXml(it.color)}" stroke-width="2"${d}/>`);
+      }
+      const tx = lx + (it.marker ? 11 : 18);
+      parts.push(`<text x="${tx.toFixed(1)}" y="${ly.toFixed(1)}" fill="${COL.text}" font-size="9">${escapeXml(it.label)}</text>`);
+      lx += estW(it);
+    }
+  }
   if (opts.yLabel) parts.push(`<text x="12" y="${(pt + pb) / 2}" fill="${COL.text}" font-size="10" text-anchor="middle" transform="rotate(-90 12 ${(pt + pb) / 2})">${escapeXml(opts.yLabel)}</text>`);
 
   for (const v of opts.vlines || []) parts.push(`<line x1="${px(v.x)}" y1="${pt}" x2="${px(v.x)}" y2="${pb}" stroke="${escapeXml(v.color || "#f59e0b")}" stroke-dasharray="4 3"/>`);
@@ -120,12 +142,22 @@ export function bodePlot(data, ann = {}) {
       ann.PM_deg != null ? `PM ${fmt(ann.PM_deg)} deg` : null,
       ann.omega_BW != null ? `BW ${fmt(ann.omega_BW)} rad/s` : null,
     ].filter(Boolean),
+    legend: [
+      { color: "#60a5fa", label: "|G(jω)|" },
+      ann.omega_gc ? { color: "#10b981", dash: true, label: "ω_c (gain crossover)" } : null,
+      ann.omega_pc ? { color: "#f59e0b", dash: true, label: "ω_π (phase crossover)" } : null,
+      ann.omega_BW ? { color: "#a78bfa", dash: true, label: "ω_BW (bandwidth)" } : null,
+    ],
   });
   const ph = linePlot({
     series: [{ x: data.omega, y: data.phaseDeg, color: "#60a5fa" }],
     xScale: "log", xLabel: "Frequency (rad/s)", yLabel: "Phase (deg)", kind: "bode-phase",
     width: 460, height: 160,
     vlines: ann.omega_gc ? [{ x: ann.omega_gc, color: "#10b981" }] : [],
+    legend: [
+      { color: "#60a5fa", label: "∠G(jω)" },
+      ann.omega_gc ? { color: "#10b981", dash: true, label: "ω_c (gain crossover)" } : null,
+    ],
   });
   return `<div>${mag}${ph}</div>`;
 }
@@ -142,6 +174,11 @@ export function nyquistPlot(data, ann = {}) {
     width: 320, height: 320,
     markers: [{ x: -1, y: 0, label: "-1", color: "#ef4444" }],
     readout: verdict,
+    legend: [
+      { color: "#60a5fa", label: "G(jω), ω≥0" },
+      { color: "#60a5fa", dash: true, label: "ω<0 (mirror)" },
+      { color: "#ef4444", marker: "●", label: "−1 point" },
+    ],
   });
 }
 
@@ -176,6 +213,12 @@ export function stepPlot(data, ann = {}) {
       ann.settling2pct != null ? `t_s ${fmt(ann.settling2pct)} s` : null,
       ann.finalValue != null ? `final ${fmt(ann.finalValue)}` : null,
     ].filter(Boolean),
+    legend: [
+      { color: "#c0392b", label: "y(t)" },
+      ann.finalValue != null ? { color: "#64748b", dash: true, label: "final value" } : null,
+      ann.settling2pct != null ? { color: "#a78bfa", dash: true, label: "t_s (2% settling)" } : null,
+      markers.length ? { color: "#10b981", marker: "●", label: "M_p (peak)" } : null,
+    ],
   });
 }
 
@@ -192,6 +235,10 @@ export function poleZeroPlot(data) {
     ],
     vlines: [{ x: 0, color: "#64748b" }],
     hlines: [{ y: 0, color: "#64748b" }],
+    legend: [
+      data.poles.length ? { color: "#ef4444", marker: "×", label: "poles" } : null,
+      data.zeros.length ? { color: "#10b981", marker: "○", label: "zeros" } : null,
+    ],
   });
 }
 
