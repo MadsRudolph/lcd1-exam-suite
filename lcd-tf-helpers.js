@@ -67,6 +67,7 @@ export function toMatlabExpr(src) {
 const PLOT_BLOCK = {
   Step: [
     "% Step response — metrics to the terminal, legend explains the dashed lines",
+    "figure;",
     "step(G);",
     "grid on;",
     "hold on;",
@@ -83,6 +84,7 @@ const PLOT_BLOCK = {
   ],
   Bode: [
     "% Bode plot — margins to the terminal, legend explains the dashed lines",
+    "figure;",
     "bode(G);",
     "grid on;",
     "[Gm, Pm, Wpc, Wgc] = margin(G);",
@@ -95,6 +97,7 @@ const PLOT_BLOCK = {
   ],
   Nyquist: [
     "% Nyquist plot — margins to the terminal, legend marks the -1 point",
+    "figure;",
     "nyquist(G);",
     "grid on;",
     "hold on;",
@@ -106,6 +109,7 @@ const PLOT_BLOCK = {
   ],
   "Pole-Zero": [
     "% Pole-zero map — poles/zeros to the terminal, legend marks the jw axis",
+    "figure;",
     "pzmap(G);",
     "sgrid;",
     "hold on;",

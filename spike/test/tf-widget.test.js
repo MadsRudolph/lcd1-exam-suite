@@ -44,6 +44,15 @@ test("matlabForPlot Bode: margins to the terminal, legend explains the dashed li
   assert.match(code, /gain crossover/);                  // legend explains what a line is
 });
 
+test("matlabForPlot opens a fresh figure per tab so pasted plots don't overwrite each other", () => {
+  for (const tab of ["Step", "Bode", "Nyquist", "Pole-Zero"]) {
+    const code = matlabForPlot("1/s", tab);
+    assert.match(code, /figure;/, `${tab} opens a figure`);
+    // figure must come before the plotting command
+    assert.ok(code.indexOf("figure;") < code.search(/step\(G\)|bode\(G\)|nyquist\(G\)|pzmap\(G\)/), `${tab} figure precedes the plot`);
+  }
+});
+
 test("matlabForPlot prints the read-outs to the terminal on every tab", () => {
   assert.match(matlabForPlot("1/s", "Step"), /fprintf\(/);
   assert.match(matlabForPlot("1/s", "Bode"), /fprintf\(/);
