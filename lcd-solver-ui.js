@@ -1,8 +1,10 @@
 // LCD1 Solver mode: a floating switcher + a full-screen panel overlaid on the
-// Block Diagram Reducer. Form-centric: every solver shows its editable fields,
-// and Smart Paste *pre-fills* the matching form (you review/correct, then solve).
+// Block Diagram Reducer. System-centric: you give one G(s) and the board
+// auto-computes the read-outs, plots and design goals. Smart Paste pulls the
+// G(s) and options out of a pasted exam question to fill that box for you — it
+// never commits to a single answer.
 import { formsInGroup } from "./lcd-forms.js";
-import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf } from "./lcd-engine.js";
+import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf, smartPaste } from "./lcd-engine.js";
 import { combineTf, matlabForPlot } from "./lcd-tf-helpers.js";
 import { parseExprToTF } from "./symbolic/parse-expr.js";
 import { setHandoff } from "./lcd-handoff.js";
@@ -64,13 +66,39 @@ function sectionLabel(t) {
   return el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.6px;margin-top:6px;` }, t);
 }
 
+// One matched-option row: green ✓ for a confident match, amber for plausible.
+function optionRow(o) {
+  const matched = o.flag === "match";
+  const plausible = o.flag === "also_plausible";
+  const border = matched ? "rgba(16,185,129,0.4)" : plausible ? "rgba(251,191,36,0.4)" : BORDER;
+  const bg = matched ? "rgba(16,185,129,0.08)" : "transparent";
+  const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:7px;border:1px solid ${border};background:${bg};font:12px 'JetBrains Mono';` });
+  const v = el("span", {}); v.textContent = o.raw_text;
+  const tag = el("span", { style: `color:${matched ? "#10b981" : plausible ? "#fbbf24" : SUB};font:600 11px 'Outfit';` });
+  tag.textContent = matched ? "✓ match" : plausible ? "≈ plausible" : (o.note || "");
+  row.append(v, tag);
+  return row;
+}
+
+// The dictionary key a design goal solves for, so its result can be matched
+// against the pasted options. PI-Lead's answer depends on the chosen unknown.
+function goalMatchKey(form, inp) {
+  if (form.fn === "solve_pi_lead") return { beta: "beta", KP: "K_P", Ni: "N_i", alpha: "alpha", design: "K_P" }[inp.unknown] || "auto";
+  if (form.fn === "solve_P_for_PM") return "K_P";
+  return form.resultKind === "DICT" ? "auto" : null;
+}
+
 function analyzeAndRender() {
   const src = state.sysBox.value.trim();
+  // Options extracted by Smart Paste are consumed once, by whichever board the
+  // current G(s) renders; manual keystrokes leave them null so nothing is clobbered.
+  const pendingOpts = state.pendingOptions || null;
+  state.pendingOptions = null;
   state.board.innerHTML = "";
   state.echo.textContent = "";
   if (!src) return;
 
-  if (isSymbolicTf(src)) { renderSymbolicBoard(src); return; }
+  if (isSymbolicTf(src)) { renderSymbolicBoard(src, pendingOpts); return; }
 
   const a = analyzeNumeric(src);
   if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span>`; return; }
@@ -103,21 +131,24 @@ function analyzeAndRender() {
     "DC gain (dB)": a.dcGain_dB, "PM (°)": a.margins?.PM_deg, "GM (dB)": a.margins?.GM_dB,
     "ω_c": a.margins?.omega_gc, "DC gain (linear)": a.dcGain, "bandwidth": a.bandwidth,
   };
-  Object.keys(quantities).forEach((k) => sel.append(el("option", { value: k }, k)));
+  // Only offer read-outs that are a finite number to match against (an integrator
+  // plant has ∞ DC gain / GM, which would just error on "Match").
+  Object.keys(quantities).filter((k) => Number.isFinite(quantities[k])).forEach((k) => sel.append(el("option", { value: k }, k)));
+  // Pasted "X dB" options are linearised by the parser, so a dB read-out must be
+  // matched in the linear domain — otherwise "6 dB" (≈2.0) would be compared
+  // against the dB number 6.02 and the wrong option would win.
+  const matchTarget = (k) => (/\(dB\)/.test(k) ? (k.startsWith("DC gain") ? a.dcGain : a.margins?.GM) : quantities[k]);
   const optsTa = el("textarea", { rows: "3", placeholder: "paste the 5 options, one per line", style: `background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px;font:12px 'JetBrains Mono';` });
+  if (pendingOpts) optsTa.value = pendingOpts;
+  state.optsTa = optsTa; // shared with the design goals so they can flag the answer too
   const mbtn = el("button", { style: "background:rgba(99,102,241,0.18);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:7px 12px;font:600 12px 'Outfit';cursor:pointer;width:max-content;" }, "Match options");
   const mout = el("div", { style: "display:flex;flex-direction:column;gap:5px;" });
   mbtn.onclick = () => {
-    const target = quantities[sel.value];
+    const target = matchTarget(sel.value);
     mout.innerHTML = "";
     if (target == null || !Number.isFinite(target)) { mout.innerHTML = `<span style="color:#f59e0b">that read-out isn't a finite number to match.</span>`; return; }
     const opts = matchOptions({ value: target, kind: "NUMBER" }, optsTa.value.trim());
-    opts.forEach((o) => {
-      const row = el("div", { style: `display:flex;justify-content:space-between;gap:10px;padding:6px 10px;border-radius:7px;border:1px solid ${o.flag === "match" ? "rgba(16,185,129,0.4)" : BORDER};font:12px 'JetBrains Mono';` });
-      const v = el("span", {}); v.textContent = o.raw_text;
-      const tag = el("span", { style: `color:${o.flag === "match" ? "#10b981" : SUB};` }); tag.textContent = o.flag === "match" ? "✓ match" : (o.note || "");
-      row.append(v, tag); mout.append(row);
-    });
+    opts.forEach((o) => mout.append(optionRow(o)));
   };
   matchWrap.append(sectionLabel("Match the exam's options against a read-out"), sel, optsTa, mbtn, mout);
   state.board.append(matchWrap);
@@ -171,7 +202,10 @@ function showGoal(form, body, src) {
   go.onclick = () => {
     const inp = { G: src };
     for (const [k, el2] of inputs) inp[k] = el2.value;
-    const res = runSolver(form.fn, inp, "", null);
+    // Reuse the options the student pasted (or Smart Paste pulled in) so the goal
+    // can flag which one its answer matches — not just print the number.
+    const optionsText = (state.optsTa && state.optsTa.value.trim()) || "";
+    const res = runSolver(form.fn, inp, optionsText, goalMatchKey(form, inp));
     out.innerHTML = "";
     if (!res.ok) { out.innerHTML = `<span style="color:#f59e0b">${res.note || "could not solve"}</span>`; return; }
     if (res.latex) katex(out, res.latex, false);
@@ -180,11 +214,18 @@ function showGoal(form, body, src) {
       res.summary.forEach(([k, v]) => { t.append(el("div", { style: `color:${SUB};` }, k), el("div", { style: `color:${TXT};` }, String(v))); });
       out.append(t);
     }
+    if (res.options && res.options.length) {
+      const ow = el("div", { style: "margin-top:9px;display:flex;flex-direction:column;gap:5px;" });
+      ow.append(sectionLabel("Which pasted option this matches"));
+      res.options.forEach((o) => ow.append(optionRow(o)));
+      out.append(ow);
+    }
+    if (res.note) out.append(el("div", { style: `margin-top:7px;color:#fcd34d;font:12px 'Inter';` }, res.note));
   };
   body.append(go, out);
 }
 
-function renderSymbolicBoard(src) {
+function renderSymbolicBoard(src, pendingOpts = null) {
   const a = analyzeSymbolic(src);
   if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span>`; return; }
   state.echo.textContent = a.interpreted ? `interpreted as  G(s) = ${a.interpreted}` : "symbolic input";
@@ -214,6 +255,7 @@ function renderSymbolicBoard(src) {
   state.board.append(sectionLabel("Check the exam's options · paste one per line"));
   const ta = el("textarea", { rows: "4", placeholder: "K/(s^2+a*s+K)\n...", style:
     `width:100%;background:rgba(30,41,59,0.4);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:9px;font:12px 'JetBrains Mono';` });
+  if (pendingOpts) ta.value = pendingOpts;
   const btn = el("button", { style: "margin-top:7px;background:rgba(16,185,129,0.16);color:#6ee7b7;border:1px solid rgba(16,185,129,0.45);border-radius:8px;padding:8px 12px;font:600 12px 'Outfit';cursor:pointer;" }, "Check which option is equal");
   const out = el("div", { style: "margin-top:8px;display:flex;flex-direction:column;gap:5px;" });
   btn.onclick = () => {
@@ -229,13 +271,89 @@ function renderSymbolicBoard(src) {
   state.board.append(ta, btn, out);
 }
 
-// Reset the page: empty the system box, the read-out board, the echo line, and
-// hide any "from the block diagram" chooser.
+// Reset the page: empty the system box, the read-out board, the echo line, the
+// Smart Paste box, and hide any "from the block diagram" chooser.
 function clearAll() {
   if (state.sysBox) { state.sysBox.value = ""; state.growSys && state.growSys(); }
   if (state.board) state.board.innerHTML = "";
   if (state.echo) state.echo.textContent = "";
   if (state.chooser) state.chooser.style.display = "none";
+  if (state.pasteBox) state.pasteBox.value = "";
+  if (state.pasteHint) state.pasteHint.innerHTML = "";
+  state.pendingOptions = null;
+}
+
+// Collapsible "paste a whole exam question" box. It pulls the transfer function
+// and the multiple-choice options out of the (often garbled) pasted text, drops
+// the G(s) into the system box so the whole board computes, and shows a
+// non-committal hint about the question type. It never flags an answer — a
+// mis-read can't masquerade as a confident wrong option.
+function buildSmartPaste() {
+  const wrap = el("div", { style: "margin-top:2px;" });
+  const toggle = el("button", { style:
+    `background:rgba(16,185,129,0.12);color:#6ee7b7;border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
+    "📋 Paste an exam question");
+  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  toggle.onclick = () => {
+    const open = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    toggle.textContent = open ? "▾ Paste an exam question" : "📋 Paste an exam question";
+    if (open) ta.focus();
+  };
+  const ta = el("textarea", { rows: "5", placeholder:
+    "Paste the full question — garbled PDF copy is fine. The transfer function and the answer options are pulled out automatically.", style:
+    `width:100%;box-sizing:border-box;resize:vertical;background:rgba(15,23,42,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:10px;font:13px/1.4 'JetBrains Mono',monospace;` });
+  const hint = el("div", { style: "margin-top:9px;display:flex;flex-direction:column;gap:7px;min-height:14px;" });
+  panel.append(ta, hint);
+  wrap.append(toggle, panel);
+
+  let timer = null;
+  const fire = () => runSmartPaste(ta.value, hint);
+  // Debounce typing; a paste lands as one input event, so it feels instant.
+  ta.addEventListener("input", () => { clearTimeout(timer); timer = setTimeout(fire, 150); });
+
+  state.pasteBox = ta; state.pasteHint = hint;
+  return wrap;
+}
+
+// Run Smart Paste on the pasted text: fill the system box (which drives the
+// whole dashboard), stash the options for the board to pre-fill, and render the
+// guidance line. No answer is ever chosen here.
+function runSmartPaste(text, hintEl) {
+  hintEl.innerHTML = "";
+  if (!text.trim()) return;
+  const r = smartPaste(text);
+  state.pendingOptions = r.options || null;
+  if (r.tf) {
+    state.sysBox.value = normalizeTf(r.tf);
+    state.growSys();
+    analyzeAndRender(); // consumes pendingOptions into the rendered board
+  }
+  renderPasteHint(hintEl, r);
+}
+
+const SOURCE_NOTE = {
+  tf: "Read G(s) straight from the question and dropped it in the system box.",
+  loop: "Read the loop gain into the system box — the design gain K is set to 1, so find it with the P-for-PM / Margins / Stable-K tools.",
+  ode: "Built G(s) from the ODE and dropped it in the system box.",
+  "closed-loop": "Read the closed-loop TF into the system box, keeping its parameters symbolic.",
+};
+
+function renderPasteHint(hintEl, r) {
+  const line = (txt, color, accent) => {
+    const d = el("div", { style:
+      `font:12px/1.45 'Inter';color:${color};background:${accent};border:1px solid ${color}33;border-radius:8px;padding:7px 10px;` });
+    d.textContent = txt;
+    return d;
+  };
+  if (r.source) hintEl.append(line(`✓ ${SOURCE_NOTE[r.source]}`, "#6ee7b7", "rgba(16,185,129,0.08)"));
+  if (r.intent) hintEl.append(line(`This looks like a ${r.intent.label} question. ${r.intent.hint}`, "#a5b4fc", "rgba(99,102,241,0.08)"));
+  if (r.options) {
+    const opts = r.options.split("\n").filter(Boolean);
+    const where = r.tf ? " — also filled into the matcher below" : "";
+    hintEl.append(line(`Found ${opts.length} answer option${opts.length === 1 ? "" : "s"}: ${opts.join(",  ")}${where}.`, "#94a3b8", "rgba(148,163,184,0.08)"));
+  }
+  if (r.note) hintEl.append(line(r.note, "#fcd34d", "rgba(245,158,11,0.08)"));
 }
 
 // Collapsible visual numerator-over-denominator editor. Lets the student write
@@ -341,6 +459,9 @@ function init() {
   clearBtn.onclick = () => clearAll();
   header.append(clearBtn);
   left.append(header);
+
+  // Smart Paste — drop a whole exam question and let it fill the system box.
+  left.append(buildSmartPaste());
 
   // Smart TF builder — a collapsible visual numerator-over-denominator editor.
   left.append(buildTfWidget());

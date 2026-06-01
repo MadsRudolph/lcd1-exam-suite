@@ -1,5 +1,5 @@
 // LCD1 engine for the Electron app. Two entry points used by the UI:
-//   routeQuestion(text)  -> { fn, inputs, options, match_key }  (Smart Paste pre-fill)
+//   smartPaste(text)     -> { tf, tfKind, source, options, intent, note }  (Smart Paste)
 //   runSolver(fn, inputs, optionsText, matchKey) -> normalized result
 // Both sit on the parity-verified solver modules in ./spike.
 import { parseTf } from "./spike/numeric/parse.js";
@@ -12,7 +12,7 @@ import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from ".
 import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { solveOdeToTf, solveStateSpaceToTf } from "./spike/solvers/p1.js";
 import { composeTfFromBode } from "./spike/solvers/p2.js";
-import { parseQuestion } from "./spike/smart-paste.js";
+import { parseQuestion, extractTf, extractLoopTf, extractClosedLoopTf, extractOde, extractOptions } from "./spike/smart-paste.js";
 import { matchOptions, applyStableRangeMatch } from "./spike/match.js";
 import { symbolicEquivTest } from "./symbolic/equiv.js";
 import { parseExprToTF } from "./symbolic/parse-expr.js";
@@ -72,11 +72,85 @@ const flist = (v) => String(v).split(",").map((x) => Number(x.trim())).filter((x
 const fmatrix = (v) => JSON.parse(String(v));
 const ftuples = (v) => [...String(v).matchAll(/\(([^)]+)\)/g)].map((m) => m[1].split(",").map((x) => Number(x.trim())));
 
-// ---- routing (Smart Paste pre-fill) ----
-export function routeQuestion(text) {
-  const r = parseQuestion(text);
-  if (!r) return null;
-  return { fn: r.solver_function, inputs: r.inputs || {}, options: r.options || "", match_key: r.match_key || null };
+// ---- Smart Paste (assist mode) ----
+// Non-committal guidance per detected question family. Smart Paste never
+// auto-answers — it points you at the dashboard read-out or goal that solves
+// this kind of question, so a mis-route can never surface as a confident
+// wrong multiple-choice letter.
+const INTENT_GUIDE = {
+  solve_margins:               { label: "Gain / phase margins",         hint: "Read GM, PM, ω_c and ω_π straight from the read-outs above." },
+  solve_stable_K_range:        { label: "Stable-K range",               hint: "Open the Design strip → “Stable-K range”." },
+  solve_P_for_PM:              { label: "P-controller for a target PM", hint: "Open the Design strip → “P for PM” and enter the target phase margin." },
+  solve_pi_lead:               { label: "PI-Lead / Lead design",        hint: "Open the Design strip → “PI-Lead” (read φ_G off the Bode phase plot if asked)." },
+  solve_closed_loop_2nd_order: { label: "Second-order spec",            hint: "Use the “Closed-loop + 1 spec” calculator, or read ζ / ωₙ from the read-outs." },
+  solve_2nd_order:             { label: "Second-order metrics",         hint: "Use the “2nd-order specs” calculator below." },
+  solve_ess_table:             { label: "Steady-state error",           hint: "See the “ess step / ramp” read-out above." },
+  solve_KP_from_ess:           { label: "K_P from a steady-state error", hint: "Use the “K_P from ess” calculator below." },
+  compose_tf_from_bode:        { label: "Bode read-off",                hint: "Use the “Bode read-off” source tool, then overlay the exam figure to check the reconstruction." },
+  solve_ode_to_tf:             { label: "ODE → transfer function",      hint: "Built G(s) from the ODE and dropped it above." },
+  solve_state_space_to_tf:     { label: "State-space → TF",             hint: "Use the “State-space → TF” source tool (enter A, B, C, D)." },
+  reduce_block_diagram:        { label: "Block-diagram reduction",      hint: "Draw it in the Block Diagram mode, then “Use in LCD1 Solver”." },
+  pick_feedforward_form:       { label: "Feed-forward form",            hint: "Use the “Feedforward form” calculator below." },
+  solve_nested_ess:            { label: "Nested-loop ess",              hint: "Use the “Nested ess” calculator below." },
+};
+
+// Pull the computable essence out of a pasted exam question: a transfer
+// function to drive the system-centric dashboard, the multiple-choice options,
+// and a hint about what kind of question it is. Returns
+//   { tf, tfKind, source, options, intent, note }
+// where tf is null when the question gives no TF in the text (figure-only or
+// conceptual) — the note then explains how to proceed instead of guessing.
+export function smartPaste(textIn) {
+  const text = String(textIn || "");
+  const out = { tf: null, tfKind: null, source: null, options: null, intent: null, note: null };
+  if (!text.trim()) return out;
+
+  // 1. Detect the question family (guidance only — never an answer).
+  let routed = null;
+  try { routed = parseQuestion(text); } catch { routed = null; }
+  if (routed && INTENT_GUIDE[routed.solver_function]) {
+    out.intent = { fn: routed.solver_function, ...INTENT_GUIDE[routed.solver_function] };
+  }
+
+  // 2. Extract a system G(s). Preference: an explicit numeric TF, then a loop
+  //    gain written with a design gain K (K normalised to 1), then a TF built
+  //    from an ODE, then a symbolic closed-loop TF (keeps K, a, …).
+  let tf = guard(() => extractTf(text), null);
+  let kind = tf ? "numeric" : null, source = tf ? "tf" : null;
+  if (!tf) {
+    const loop = guard(() => extractLoopTf(text), null);
+    if (loop) { tf = loop; kind = "numeric"; source = "loop"; }
+  }
+  if (!tf) {
+    const ode = guard(() => extractOde(text), null);
+    if (ode && ode.y_coeffs) {
+      const built = guard(() => {
+        const y = ode.y_coeffs.split(",").map(Number);
+        const u = (ode.u_coeffs || "1").split(",").map(Number);
+        const G = solveOdeToTf(y, u);
+        return formatTf(G.num, G.den).replace(/\^/g, "**");
+      }, null);
+      if (built) { tf = built; kind = "numeric"; source = "ode"; }
+    }
+  }
+  if (!tf) {
+    const cl = guard(() => extractClosedLoopTf(text), null);
+    if (cl) { tf = cl.replace(/\^/g, "**"); kind = "symbolic"; source = "closed-loop"; }
+  }
+  out.tf = tf; out.tfKind = kind; out.source = source;
+
+  // 3. Multiple-choice options.
+  const opts = guard(() => extractOptions(text), "");
+  out.options = opts && opts.trim() ? opts.trim() : null;
+
+  // 4. Fail safe when nothing computable was found (the figure-only / conceptual
+  //    case): say so plainly instead of leaving the dashboard blank.
+  if (!tf) {
+    out.note = out.intent
+      ? `This looks like a ${out.intent.label} question, but no transfer function is written in the text — it likely refers to a figure. ${out.intent.hint} Read the value(s) off the plot and type G(s) above, or use the tools below.`
+      : "No transfer function or ODE found in the pasted text — this question probably refers to a figure or is conceptual. Read any values off the plot and type G(s) above, or use the calculators below.";
+  }
+  return out;
 }
 
 // ---- core solve ----

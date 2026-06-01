@@ -180,6 +180,50 @@ export function extractClosedLoopTf(textIn) {
   return null;
 }
 
+// Inline loop gain "G(s) = K <denominator>" where the design gain K is written
+// out and the fraction bar was flattened by PDF copy, e.g.
+//   "G(s) = K s(s + 21)"   -> "1/(s*(s+21))"
+//   "G(s) = K / (s(s+5))"  -> "1/(s*(s+5))"
+//   "G(s) = K(s+1)/(s(s+5))" -> "(s+1)/(s*(s+5))"
+// The leading design gain (K, K_P) is normalised to 1 so the numeric tools and
+// the P-for-PM goal can solve for it. Symbols other than that gain make it bail
+// (the symbolic board / extractClosedLoopTf handle those).
+export function extractLoopTf(textIn) {
+  const text = normalizeDashes(textIn);
+  const m = new RegExp(TF_LABEL + "\\s*=[ \\t]*(.+)", "i").exec(text);
+  if (!m) return null;
+
+  // Require a leading design gain K / K_P / Kp — otherwise this isn't our shape.
+  // Strip it off the raw text first (takeExpr's charset would truncate "Kp"/"K_P"),
+  // then read the math tail.
+  const g = /^\s*(K(?:_?[Pp])?)\s*([*/]?)\s*/.exec(m[1]);
+  if (!g) return null;
+  const hadSlash = g[2] === "/";
+  const rest = takeExpr(m[1].slice(g[0].length)).trim();
+  if (!rest) return null;
+
+  let numStr = "1", denStr;
+  if (hadSlash) {
+    denStr = rest; // K was written over the whole tail
+  } else if (rest.includes("/")) {
+    const i = rest.indexOf("/"); // K * numerator / denominator
+    numStr = rest.slice(0, i).trim();
+    denStr = rest.slice(i + 1).trim();
+  } else {
+    denStr = rest; // flattened bar: the tail is the denominator
+  }
+  // A parenthesised piece ends at its last ')'; drop any stray trailing prose.
+  const tidy = (s) => (s.includes("(") ? s.slice(0, s.lastIndexOf(")") + 1) : s).replace(/\.+$/, "").trim();
+  // Make every implied product explicit: "s(s+5)" -> "s*(s+5)", ")(" -> ")*(".
+  const explicitMul = (s) => s.replace(/([A-Za-z0-9)])\s*\(/g, "$1*(").replace(/\)\s*([A-Za-z0-9])/g, ")*$1");
+  numStr = explicitMul(normalizePolyStr(tidy(numStr) || "1")) || "1";
+  denStr = explicitMul(normalizePolyStr(tidy(denStr)));
+  if (!/s/.test(denStr)) return null;
+
+  const cand = `${numStr}/(${denStr})`;
+  try { parseTf(cand); return cand; } catch { return null; }
+}
+
 // Linear constant-coefficient ODE in y (driven by u) -> coefficient lists for
 // solve_ode_to_tf. Handles the derivative notations a PDF copy produces:
 //   ÿ (¨y, U+00A8/combining U+0308), ẏ (˙y, U+02D9/U+0307), y'' / y', \ddot/\dot,
