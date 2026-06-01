@@ -34,7 +34,7 @@ set "NODE_URL=https://nodejs.org/dist/v%NODE_VERSION%/%NODE_DIR%.zip"
 :: quote and tar fails with "could not chdir".
 where curl >nul 2>nul && where tar >nul 2>nul
 if %errorlevel% equ 0 (
-    curl -L -o "%NODE_ZIP%" "%NODE_URL%"
+    curl -L --retry 3 --retry-delay 2 -o "%NODE_ZIP%" "%NODE_URL%"
     if exist "%NODE_ZIP%" tar -xf "%NODE_ZIP%"
 ) else (
     :: Fallback for older systems without curl/tar.
@@ -80,24 +80,37 @@ if not exist "node_modules\" (
 
 :: 4. Ensure the Electron runtime binary actually downloaded.
 ::    npm install does NOT reliably trigger Electron's binary download,
-::    so do it explicitly with a few retries to survive a flaky network.
+::    and Electron's Node-based downloader fails on some networks. So:
+::    try its own installer once, then fall back to a direct curl fetch --
+::    the same robust path we use for Node above.
 ::    (Flat goto flow -- labels inside an if(...) block do not work in batch.)
 if exist "node_modules\electron\dist\electron.exe" goto electron_done
 echo =======================================================
 echo Electron runtime binary missing. Downloading it now...
-echo This is a one-time ~230 MB download.
+echo This is a one-time ~150 MB download.
 echo =======================================================
-set "ELECTRON_TRIES=0"
-:electron_retry
+
+:: 4a. First try Electron's bundled installer.
 node "node_modules\electron\install.js"
 if exist "node_modules\electron\dist\electron.exe" goto electron_done
-set /a ELECTRON_TRIES+=1
-if %ELECTRON_TRIES% geq 3 goto electron_failed
-echo Download attempt failed. Retrying (%ELECTRON_TRIES%/3)...
-goto electron_retry
-:electron_failed
-echo ERROR: Electron runtime download failed after 3 attempts!
+
+:: 4b. Fallback: fetch the binary directly with curl + tar. Electron's
+::     downloader fails on some networks where curl succeeds (it follows
+::     redirects and uses the system TLS stack).
+echo Standard download failed. Trying a direct download instead...
+for /f "usebackq tokens=* delims=" %%v in (`node -p "require('./node_modules/electron/package.json').version"`) do set "ELECTRON_VER=%%v"
+set "EL_ZIP=%~dp0electron-dist.zip"
+set "EL_URL=https://github.com/electron/electron/releases/download/v%ELECTRON_VER%/electron-v%ELECTRON_VER%-win32-x64.zip"
+if not exist "node_modules\electron\dist" mkdir "node_modules\electron\dist"
+curl -L --retry 3 --retry-delay 2 -o "%EL_ZIP%" "%EL_URL%"
+if exist "%EL_ZIP%" tar -xf "%EL_ZIP%" -C "node_modules\electron\dist"
+if exist "%EL_ZIP%" del "%EL_ZIP%" >nul 2>nul
+if exist "node_modules\electron\dist\electron.exe" goto electron_done
+
+echo =======================================================
+echo ERROR: Electron runtime download failed!
 echo Check your internet connection and run this file again.
+echo =======================================================
 pause
 exit /b
 :electron_done
