@@ -29,14 +29,17 @@ set "NODE_ZIP=%~dp0node-portable.zip"
 set "NODE_URL=https://nodejs.org/dist/v%NODE_VERSION%/%NODE_DIR%.zip"
 
 :: Try built-in curl + tar first (present on Windows 10 1803+ / Windows 11).
+:: NOTE: extract into the current directory (we cd'd to %~dp0 above).
+:: Do NOT pass -C "%~dp0": the trailing backslash escapes the closing
+:: quote and tar fails with "could not chdir".
 where curl >nul 2>nul && where tar >nul 2>nul
 if %errorlevel% equ 0 (
     curl -L -o "%NODE_ZIP%" "%NODE_URL%"
-    if exist "%NODE_ZIP%" tar -xf "%NODE_ZIP%" -C "%~dp0"
+    if exist "%NODE_ZIP%" tar -xf "%NODE_ZIP%"
 ) else (
     :: Fallback for older systems without curl/tar.
     powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-      "try { Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%NODE_ZIP%' -UseBasicParsing; Expand-Archive -Path '%NODE_ZIP%' -DestinationPath '%~dp0' -Force } catch { exit 1 }"
+      "try { Invoke-WebRequest -Uri '%NODE_URL%' -OutFile '%NODE_ZIP%' -UseBasicParsing; Expand-Archive -Path '%NODE_ZIP%' -DestinationPath '.' -Force } catch { exit 1 }"
 )
 
 :: The archive extracts to node-v<ver>-win-x64\ ; rename it to node-portable\.
