@@ -170,6 +170,11 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
     resultKind: form ? form.resultKind : "NUMBER", dictKeys: form ? form.dictMatchKeys : null,
     latex: null, summary: [], options: null, note: null,
   };
+  // Forgive how the student typed any transfer-function field (unicode, an
+  // "G(s) =" label, s² superscripts) before it reaches a parser.
+  for (const k of ["G", "F", "G_str", "closed_loop_str", "ref", "L", "Gd"]) {
+    if (typeof inp[k] === "string") inp[k] = normalizeTfInput(inp[k]);
+  }
   try {
     switch (fn) {
       case "solve_ode_to_tf": {
@@ -468,6 +473,22 @@ function flagRange(range, optionsText) {
   return applyStableRangeMatch("solve_stable_K_range", range, opts);
 }
 
+// Clean up a transfer function the way a student actually types or pastes it,
+// so it parses: drop a leading "G(s) =" label, turn unicode minus/×/÷ and
+// superscripts (s² → s**2) into ASCII, and fix fullwidth parens and odd spaces.
+// A no-op on already-valid input, so it's safe to apply everywhere.
+const SUPERSCRIPT = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9" };
+export function normalizeTfInput(str) {
+  let s = String(str ?? "");
+  s = s.replace(/^\s*[A-Za-z]{1,3}\s*\(\s*s\s*\)\s*=\s*/, ""); // strip "G(s) =", "L(s)=", …
+  s = s.replace(/[−–—‐‑‒―]/g, "-"); // unicode minus / dashes
+  s = s.replace(/[×⋅∗·]/g, "*").replace(/÷/g, "/"); // ×, ·, ∗ → *  ÷ → /
+  s = s.replace(/（/g, "(").replace(/）/g, ")"); // fullwidth parens
+  s = s.replace(/[⁰¹²³⁴-⁹]+/g, (m) => "**" + [...m].map((c) => SUPERSCRIPT[c]).join("")); // s² → s**2
+  s = s.replace(/[     ]/g, " "); // exotic spaces → normal
+  return s.trim();
+}
+
 // ---- dashboard orchestration (re-surfacing the existing solvers) ----
 
 // Highest-degree-first coeff array -> readable "a s^2 + b s + c".
@@ -518,7 +539,8 @@ export function isSymbolicTf(str) {
   return cleaned.length > 0;
 }
 
-export function analyzeSymbolic(Gstr) {
+export function analyzeSymbolic(GstrIn) {
+  const Gstr = normalizeTfInput(GstrIn);
   let L;
   try { L = parseExprToTF(Gstr); } catch (e) { return { error: e.message }; }
   const safe = (fn) => { try { return fn(); } catch { return null; } };
@@ -563,7 +585,8 @@ export function analyzeSymbolic(Gstr) {
   return out;
 }
 
-export function analyzeNumeric(Gstr) {
+export function analyzeNumeric(GstrIn) {
+  const Gstr = normalizeTfInput(GstrIn);
   let G;
   try { G = parseTf(Gstr); } catch (e) { return { error: e.message }; }
 

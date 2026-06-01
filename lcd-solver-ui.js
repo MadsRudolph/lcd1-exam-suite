@@ -4,7 +4,7 @@
 // G(s) and options out of a pasted exam question to fill that box for you — it
 // never commits to a single answer.
 import { formsInGroup } from "./lcd-forms.js";
-import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf, smartPaste } from "./lcd-engine.js";
+import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf, smartPaste, normalizeTfInput } from "./lcd-engine.js";
 import { combineTf, matlabForPlot } from "./lcd-tf-helpers.js";
 import { parseExprToTF } from "./symbolic/parse-expr.js";
 import { setHandoff } from "./lcd-handoff.js";
@@ -89,7 +89,8 @@ function goalMatchKey(form, inp) {
 }
 
 function analyzeAndRender() {
-  const src = state.sysBox.value.trim();
+  // Forgive how the TF was typed (unicode, "G(s) =", s²…) before parsing/routing.
+  const src = normalizeTfInput(state.sysBox.value);
   // Options extracted by Smart Paste are consumed once, by whichever board the
   // current G(s) renders; manual keystrokes leave them null so nothing is clobbered.
   const pendingOpts = state.pendingOptions || null;
@@ -101,7 +102,7 @@ function analyzeAndRender() {
   if (isSymbolicTf(src)) { renderSymbolicBoard(src, pendingOpts); return; }
 
   const a = analyzeNumeric(src);
-  if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span>`; return; }
+  if (a.error) { state.echo.innerHTML = `<span style="color:#ef4444">could not read: ${a.error}</span> <span style="color:${SUB}">— see “Syntax” under the box.</span>`; return; }
   state.echo.textContent = `interpreted as  G(s) = ${a.interpreted}`;
 
   const grid = el("div", { style: "display:grid;grid-template-columns:repeat(3,1fr);gap:8px;" });
@@ -436,6 +437,39 @@ function buildTfWidget() {
   return wrap;
 }
 
+// A compact, collapsible syntax reference that sits under the System box, so
+// when an expression doesn't compile the rules (and clickable examples) are
+// right there. Examples load straight into the box.
+function buildSyntaxHelp() {
+  const wrap = el("div", { style: "margin-top:6px;" });
+  const toggle = el("button", { style:
+    `background:transparent;color:${SUB};border:1px solid ${BORDER};border-radius:8px;padding:5px 10px;font:600 11px 'Outfit';cursor:pointer;` },
+    "ⓘ Syntax");
+  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  toggle.onclick = () => {
+    const open = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    toggle.textContent = open ? "▾ Syntax" : "ⓘ Syntax";
+  };
+  const rule = (html) => el("div", { style: `color:${SUB};font:400 12px/1.55 'Inter';margin:3px 0;` }, html);
+  panel.append(
+    rule("<b>Operators:</b> <code>*</code> multiply, <code>/</code> divide, <code>**</code> or <code>^</code> power, parentheses to group."),
+    rule("<b>Implied ×:</b> you can write <code>(s+2)(s+3)</code>, <code>5s</code>, <code>s(s+1)</code> — no <code>*</code> needed."),
+    rule("<b>Variable:</b> only <code>s</code>. Keep parameters as letters — <code>K</code>, <code>a</code>, <code>tau</code> — for the symbolic board."),
+    rule("<b>Forgiving:</b> a leading <code>G(s) =</code>, a unicode minus <code>−</code>, <code>×</code>/<code>·</code>, and <code>s²</code> are all accepted automatically."),
+  );
+  const exLabel = el("div", { style: `color:${SUB};font:600 10px 'Outfit';text-transform:uppercase;letter-spacing:.5px;margin:8px 0 4px;` }, "Examples — click to load");
+  const exRow = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
+  for (const tf of ["12/((s+2)*(s+3))", "1/(s+1)**3", "25/(s**2+3*s+25)", "K/(s*(s+a))"]) {
+    const b = el("button", { style: `background:rgba(99,102,241,0.14);color:#a5b4fc;border:1px solid rgba(99,102,241,0.35);border-radius:8px;padding:5px 9px;font:600 11px 'JetBrains Mono';cursor:pointer;` }, tf);
+    b.onclick = () => { state.sysBox.value = tf; state.growSys(); analyzeAndRender(); };
+    exRow.append(b);
+  }
+  panel.append(exLabel, exRow);
+  wrap.append(toggle, panel);
+  return wrap;
+}
+
 // The interactive "How this app works" page. Collapsible sections with KaTeX
 // formulas and "Try it" buttons that load real examples straight into the
 // solver (via the state hooks set up in init).
@@ -589,6 +623,7 @@ function init() {
   const echo = el("div", { id: "lcd-echo", style: `margin-top:7px;font:12px 'JetBrains Mono';color:#6ee7b7;min-height:16px;` });
   left.append(el("label", { style: `color:${SUB};font:600 11px 'Outfit';text-transform:uppercase;letter-spacing:.5px;` }, "System — one box for everything"));
   left.append(sysBox, echo);
+  left.append(buildSyntaxHelp());
   const board = el("div", { id: "lcd-board", style: "display:flex;flex-direction:column;gap:12px;margin-top:6px;" });
   left.append(board);
 
