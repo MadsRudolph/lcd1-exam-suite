@@ -3,6 +3,8 @@
 // and Smart Paste *pre-fills* the matching form (you review/correct, then solve).
 import { formsInGroup } from "./lcd-forms.js";
 import { runSolver, analyzeNumeric, analyzeSymbolic, isSymbolicTf } from "./lcd-engine.js";
+import { combineTf, matlabForPlot } from "./lcd-tf-helpers.js";
+import { parseExprToTF } from "./symbolic/parse-expr.js";
 import { setHandoff } from "./lcd-handoff.js";
 import { solveBlockDiagram } from "./solver.js";
 import { bodePlot, nyquistPlot, stepPlot, poleZeroPlot } from "./plot-svg.js";
@@ -125,7 +127,7 @@ function renderPlotsInto(parent, src) {
   let pd;
   try { pd = buildPlotData(parseTf(src)); } catch { return; }
   parent.append(sectionLabel("Plots · overlay the exam figure to verify"));
-  parent.append(renderPlotPanel(pd, "Bode"));
+  parent.append(renderPlotPanel(pd, "Bode", src));
 }
 
 function renderDesignStrip(parent, src) {
@@ -227,6 +229,88 @@ function renderSymbolicBoard(src) {
   state.board.append(ta, btn, out);
 }
 
+// Reset the page: empty the system box, the read-out board, the echo line, and
+// hide any "from the block diagram" chooser.
+function clearAll() {
+  if (state.sysBox) { state.sysBox.value = ""; state.growSys && state.growSys(); }
+  if (state.board) state.board.innerHTML = "";
+  if (state.echo) state.echo.textContent = "";
+  if (state.chooser) state.chooser.style.display = "none";
+}
+
+// Collapsible visual numerator-over-denominator editor. Lets the student write
+// each part on its own line (no parenthesis juggling), see a live fraction
+// preview and validity check, then insert/copy the one-line TF the solver reads.
+function buildTfWidget() {
+  const wrap = el("div", { style: "margin-top:2px;" });
+  const toggle = el("button", { style:
+    `background:rgba(99,102,241,0.12);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:6px 11px;font:600 12px 'Outfit';cursor:pointer;` },
+    "✚ Build a transfer function");
+  const panel = el("div", { style: `display:none;margin-top:8px;background:#0e1830;border:1px solid ${BORDER};border-radius:10px;padding:12px;` });
+  toggle.onclick = () => {
+    const open = panel.style.display === "none";
+    panel.style.display = open ? "block" : "none";
+    toggle.textContent = open ? "▾ Build a transfer function" : "✚ Build a transfer function";
+  };
+
+  const mkField = (ph) => el("input", { type: "text", placeholder: ph, style:
+    `width:100%;box-sizing:border-box;background:rgba(15,23,42,0.6);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 10px;font:14px 'JetBrains Mono';text-align:center;` });
+  const numIn = mkField("numerator   e.g.  K   or   s+1");
+  const denIn = mkField("denominator  e.g.  s*(s+a)   or   (s+2)*(s+3)");
+  const bar = el("div", { style: `height:2px;background:${TXT};opacity:.6;margin:7px 0;border-radius:2px;` });
+  const fracCol = el("div", { style: "display:flex;flex-direction:column;flex:1;min-width:0;" });
+  fracCol.append(numIn, bar, denIn);
+  const preview = el("div", { style: `min-width:110px;display:flex;align-items:center;justify-content:center;color:#a5b4fc;font:14px 'JetBrains Mono';padding:0 6px;` });
+  const top = el("div", { style: "display:flex;align-items:center;gap:12px;" });
+  top.append(fracCol, preview);
+
+  const status = el("div", { style: "margin-top:8px;font:12px 'JetBrains Mono';min-height:16px;" });
+  const row = el("div", { style: "display:flex;gap:8px;margin-top:9px;" });
+  const insertBtn = el("button", { style: "background:linear-gradient(135deg,#3b82f6,#6366f1);color:#fff;border:none;border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;" }, "↧ Insert into G(s)");
+  const copyBtn = el("button", { style: `background:rgba(30,41,59,0.7);color:${TXT};border:1px solid ${BORDER};border-radius:8px;padding:8px 14px;font:600 12px 'Outfit';cursor:pointer;` }, "⧉ Copy");
+  row.append(insertBtn, copyBtn);
+  panel.append(top, status, row);
+  wrap.append(toggle, panel);
+
+  const toLatex = (s) => s.replace(/\*\*/g, "^").replace(/\*/g, " \\cdot ");
+  const combinedNow = () => combineTf(numIn.value || "", denIn.value || "");
+  const refresh = () => {
+    const n = numIn.value.trim(), d = denIn.value.trim();
+    katex(preview, `\\dfrac{${toLatex(n || "?")}}{${toLatex(d || "?")}}`, false);
+    if (!n || !d) { status.textContent = "enter a numerator and a denominator"; status.style.color = SUB; return; }
+    const combined = combinedNow();
+    try {
+      parseExprToTF(combined);
+      const sym = isSymbolicTf(combined);
+      status.innerHTML = `<span style="color:#10b981">✓ valid · ${sym ? "symbolic" : "numeric"}</span>  <span style="color:${SUB}">→ ${combined}</span>`;
+    } catch (e) {
+      status.innerHTML = `<span style="color:#ef4444">✗ ${e.message}</span>`;
+    }
+  };
+  numIn.addEventListener("input", refresh);
+  denIn.addEventListener("input", refresh);
+  refresh();
+
+  insertBtn.onclick = () => {
+    const n = numIn.value.trim(), d = denIn.value.trim();
+    if (!n || !d) return;
+    const combined = combinedNow();
+    try { parseExprToTF(combined); } catch { return; }
+    state.sysBox.value = combined;
+    state.growSys();
+    state.analyzeAndRender();
+    panel.style.display = "none";
+    toggle.textContent = "✚ Build a transfer function";
+  };
+  copyBtn.onclick = async () => {
+    const combined = combinedNow();
+    try { await navigator.clipboard.writeText(combined); copyBtn.textContent = "✓ Copied"; }
+    catch { copyBtn.textContent = "✗ Failed"; }
+    setTimeout(() => { copyBtn.textContent = "⧉ Copy"; }, 1400);
+  };
+  return wrap;
+}
+
 function init() {
   // ---- floating switcher ----
   const bar = el("div", { style:
@@ -248,8 +332,18 @@ function init() {
   // left column (scrolls)
   const left = el("div", { style: `padding:20px 24px;overflow:auto;display:flex;flex-direction:column;gap:14px;` });
 
-  // header
-  left.append(el("h2", { style: `margin:0;color:${TXT};font:700 16px 'Outfit',sans-serif;` }, "∑ LCD1 Solver"));
+  // header — title on the left, a Clear-the-page action on the right
+  const header = el("div", { style: "display:flex;align-items:center;justify-content:space-between;gap:12px;" });
+  header.append(el("h2", { style: `margin:0;color:${TXT};font:700 16px 'Outfit',sans-serif;` }, "∑ LCD1 Solver"));
+  const clearBtn = el("button", { title: "clear the system input and all read-outs", style:
+    `background:rgba(239,68,68,0.12);color:#fca5a5;border:1px solid rgba(239,68,68,0.35);border-radius:8px;padding:6px 12px;font:600 12px 'Outfit';cursor:pointer;` },
+    "✕ Clear");
+  clearBtn.onclick = () => clearAll();
+  header.append(clearBtn);
+  left.append(header);
+
+  // Smart TF builder — a collapsible visual numerator-over-denominator editor.
+  left.append(buildTfWidget());
 
   // system input — one box for everything
   const sysBox = el("textarea", { id: "lcd-sys", rows: "1", placeholder: "G(s) = e.g.  12/((s+2)*(s+3))   or   K/(s*(s+a))", style:
@@ -461,9 +555,10 @@ function renderChooser(tf) {
 // Tabbed Step | Bode | Nyquist | Pole-Zero panel from a buildPlotData() object.
 // An optional image overlay lets the student drop the exam's own plot behind the
 // generated one and fade between them to confirm a reconstructed G(s) matches.
-function renderPlotPanel(pd, defaultTab = "Step") {
+function renderPlotPanel(pd, defaultTab = "Step", src = "") {
   const wrap = el("div", { style: "display:flex;flex-direction:column;gap:10px;" });
   const tabs = el("div", { style: "display:flex;gap:6px;align-items:center;flex-wrap:wrap;" });
+  let currentTab = defaultTab;
 
   // image overlay behind the SVG, controlled from the tab row
   const fileBtn = el("label", { title: "load a screenshot of the exam's plot to compare against",
@@ -488,6 +583,7 @@ function renderPlotPanel(pd, defaultTab = "Step") {
     "Pole-Zero": () => poleZeroPlot(pd.poleZero),
   };
   const show = (name) => {
+    currentTab = name;
     svgLayer.innerHTML = views[name](); // generated SVG string — safe, no user markup
     attachHover(svgLayer, pd);
     [...tabs.querySelectorAll("button[data-tab]")].forEach((b) => { b.style.opacity = b.dataset.tab === name ? "1" : "0.55"; });
@@ -499,7 +595,18 @@ function renderPlotPanel(pd, defaultTab = "Step") {
     b.onclick = () => show(name);
     tabs.append(b);
   }
-  tabs.append(fileBtn, opacity, clearBtn);
+
+  // Copy runnable, commented MATLAB that reproduces the tab currently in view.
+  const mlBtn = el("button", { title: "copy MATLAB code that draws this plot",
+    style: `background:rgba(245,158,11,0.14);color:#fcd34d;border:1px solid rgba(245,158,11,0.4);border-radius:8px;padding:6px 10px;font:600 11px 'Outfit';cursor:pointer;` },
+    "⧉ Copy MATLAB");
+  mlBtn.onclick = async () => {
+    const code = matlabForPlot(src, currentTab);
+    try { await navigator.clipboard.writeText(code); mlBtn.textContent = "✓ Copied"; }
+    catch { mlBtn.textContent = "✗ Copy failed"; }
+    setTimeout(() => { mlBtn.textContent = "⧉ Copy MATLAB"; }, 1400);
+  };
+  tabs.append(mlBtn, fileBtn, opacity, clearBtn);
 
   fileInput.onchange = () => {
     const f = fileInput.files && fileInput.files[0];

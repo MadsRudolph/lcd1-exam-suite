@@ -91,7 +91,17 @@ export function linePlot(opts) {
   }
   if (opts.yLabel) parts.push(`<text x="12" y="${(pt + pb) / 2}" fill="${COL.text}" font-size="10" text-anchor="middle" transform="rotate(-90 12 ${(pt + pb) / 2})">${escapeXml(opts.yLabel)}</text>`);
 
-  for (const v of opts.vlines || []) parts.push(`<line x1="${px(v.x)}" y1="${pt}" x2="${px(v.x)}" y2="${pb}" stroke="${escapeXml(v.color || "#f59e0b")}" stroke-dasharray="4 3"/>`);
+  // Shaded vertical bands (e.g. the stable left-half-plane on a pole-zero map).
+  // Clamped to the plot box so an open-ended region (x0 = -Infinity) still fills.
+  for (const rg of opts.regions || []) {
+    const xa = Number.isFinite(rg.x0) ? px(rg.x0) : pl;
+    const xb = Number.isFinite(rg.x1) ? px(rg.x1) : pr;
+    const x = Math.max(pl, Math.min(xa, xb));
+    const w = Math.min(pr, Math.max(xa, xb)) - x;
+    if (w > 0) parts.push(`<rect x="${x.toFixed(2)}" y="${pt}" width="${w.toFixed(2)}" height="${(pb - pt).toFixed(2)}" fill="${escapeXml(rg.color || "rgba(16,185,129,0.10)")}" clip-path="url(#${clipId})"/>`);
+  }
+
+  for (const v of opts.vlines || []) parts.push(`<line x1="${px(v.x)}" y1="${pt}" x2="${px(v.x)}" y2="${pb}" stroke="${escapeXml(v.color || "#f59e0b")}"${v.solid ? "" : ` stroke-dasharray="4 3"`}/>`);
   for (const h of opts.hlines || []) parts.push(`<line x1="${pl}" y1="${py(h.y)}" x2="${pr}" y2="${py(h.y)}" stroke="${escapeXml(h.color || "#f59e0b")}" stroke-dasharray="4 3"/>`);
 
   for (const s of opts.series) {
@@ -229,15 +239,21 @@ export function poleZeroPlot(data) {
     series: [{ x: xs, y: ys, color: "transparent" }],
     xScale: "linear", xLabel: "Real", yLabel: "Imag", title: "Pole-Zero Map", kind: "polezero",
     width: 320, height: 280,
+    // s-plane stability picture: shade the left half-plane (Re<0, stable) and
+    // draw the imaginary axis solid — it is the continuous-time stability
+    // boundary (poles must stay left of it).
+    regions: [{ x0: -Infinity, x1: 0, color: "rgba(16,185,129,0.10)" }],
     markers: [
       ...data.poles.map((p) => ({ x: p.re, y: p.im, label: "x", color: "#ef4444" })),
       ...data.zeros.map((z) => ({ x: z.re, y: z.im, label: "o", color: "#10b981" })),
     ],
-    vlines: [{ x: 0, color: "#64748b" }],
+    vlines: [{ x: 0, color: "#10b981", solid: true }],
     hlines: [{ y: 0, color: "#64748b" }],
     legend: [
       data.poles.length ? { color: "#ef4444", marker: "×", label: "poles" } : null,
       data.zeros.length ? { color: "#10b981", marker: "○", label: "zeros" } : null,
+      { color: "rgba(16,185,129,0.45)", label: "stable region (Re<0)" },
+      { color: "#10b981", label: "jω axis (boundary)" },
     ],
   });
 }
