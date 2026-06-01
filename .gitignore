@@ -4,6 +4,9 @@ bundle.js
 dist/
 *-win32-x64/
 
+# Portable Node.js fetched by the Windows launcher (regenerated on demand)
+node-portable/
+
 # Python
 __pycache__/
 *.py[cod]
@@ -24,3 +27,6 @@ mock-exams/*.out
 
 # Brainstorming visual-companion scratch
 .superpowers/
+
+# Exam-audit harness build artifact (regenerate from exam-harness.src.js)
+exam-harness.mjs
