@@ -6,9 +6,16 @@
 import { parseTf } from "./numeric/parse.js";
 
 const DASHES = { "−": "-", "–": "-", "—": "-", "‐": "-", "‑": "-", "‒": "-", "―": "-", "⁃": "-" };
+const SUPERSCRIPT = { "⁰": "0", "¹": "1", "²": "2", "³": "3", "⁴": "4", "⁵": "5", "⁶": "6", "⁷": "7", "⁸": "8", "⁹": "9" };
 const TF_CHARS = new Set("0123456789sKPj.+-*/()^ \t".split(""));
 
-const normalizeDashes = (text) => text.replace(/[−–—‐‑‒―⁃]/g, (c) => DASHES[c] || "-");
+// Normalise the unicode a PDF copy-paste leaves behind so the downstream regex
+// extractors see ASCII: dashes/minus → "-", and superscripts (s²) → "s2" (the
+// finalizeTf / normalizePolyStr passes then turn "s2" into "s**2").
+const normalizeDashes = (text) =>
+  text
+    .replace(/[−–—‐‑‒―⁃]/g, (c) => DASHES[c] || "-")
+    .replace(/[⁰¹²³⁴⁵⁶⁷⁸⁹]/g, (c) => SUPERSCRIPT[c]);
 
 function extractNumber(text, pattern, flags = "i") {
   const m = new RegExp(pattern, flags).exec(text);
@@ -65,7 +72,8 @@ function finalizeTf(candIn) {
   cand = cand.replace(/^\s*K_?[Pp]?\s*\*?\s*\//, "1/");
   cand = cand.replace(/^\s*K_?[Pp]?\s*\*\s*/, "");
   cand = splitFlattenedFraction(cand);
-  // Flattened superscripts: s3 -> s**3 (digit must hug the s).
+  // Flattened superscripts: s3 -> s**3 (digit must hug the s). This also catches
+  // a unicode s² once normalizeDashes has turned it into "s2".
   cand = cand.replace(/(?<![A-Za-z_])s(\d+)/g, "s**$1");
   try {
     const G = parseTf(cand); // throws on unknown symbols (e.g. residual K)
@@ -279,7 +287,13 @@ export function extractOde(textIn) {
 // ---- options ------------------------------------------------------------
 function valueFrom(bodyIn) {
   let body = bodyIn.split(/\s\((?=[A-Za-z])/)[0];
-  body = body.split(/\b(?:correct|wrong|false|true)\b/i)[0];
+  body = body.split(/\b(?:correct|wrong|false|true)\b/i)[0].trim();
+  // Keep a stability range / inequality intact (e.g. "0 < K < 90", "K > 45") so the
+  // range matcher can compare it to the computed interval — collapsing it to a
+  // single number would lose the bound that distinguishes the options.
+  if (/[<>≤≥]/.test(body) || /[A-Za-z]\s*∈\s*[(\[]/.test(body)) {
+    return body.replace(/[.,;]+$/, "").trim();
+  }
   const m = /(-?\d+(?:\.\d+)?)\s*(dB)?/i.exec(body);
   if (!m) return null;
   return m[1] + (m[2] ? " dB" : "");

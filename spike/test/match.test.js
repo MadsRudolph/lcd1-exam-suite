@@ -50,3 +50,53 @@ test("stable-range bounded interval (0, 43)", () => {
   applyStableRangeMatch("solve_stable_K_range", [0.0, 43.0], opts);
   assert.deepEqual(opts.map((o) => o.flag), ["match", "no_match", "no_match"]);
 });
+
+// --- tolerant parsing of options as actually written on exams ---------------
+
+test("number match strips enumerators and quantity labels", () => {
+  // F22 Q6 / S21 Q6 style: "n. K = value".
+  const o = matchOptions({ value: 8.4, kind: "NUMBER" }, "1. K = 0.1\n2. K = 8.4\n3. K = 77.5");
+  assert.deepEqual(o.map((x) => x.flag), ["no_match", "match", "no_match"]);
+});
+
+test("number match strips letter enumerators and is unit-tolerant", () => {
+  // F22 Q17 style "e) 0.5"; and overshoot "4.3 %".
+  const a = matchOptions({ value: 0.5073, kind: "NUMBER" }, "a) 0.032\nb) 2\nd) 1.13\ne) 0.5");
+  assert.equal(a[3].flag, "match");
+  const b = matchOptions({ value: 4.32, kind: "NUMBER" }, "1. 4.3 %\n2. 12.0 %\n3. 5.1 %");
+  assert.equal(b[0].flag, "match");
+});
+
+test("decimal answers are never eaten as enumerators", () => {
+  // "0.4" must parse as 0.4, not "0." + "4".
+  const o = matchOptions({ value: 0.4, kind: "NUMBER" }, "0.4\n0.8");
+  assert.equal(o[0].parsed, 0.4);
+  assert.equal(o[0].flag, "match");
+});
+
+test("dict match tolerates enumerated/labelled options", () => {
+  const o = matchOptions({ value: { K_P: 2.0, omega_c: 25.0 }, kind: "DICT" }, "a. K_P = 1.0\nb. K_P = 2.0\nc. K_P = 3.0", "K_P");
+  assert.equal(o[1].flag, "match");
+});
+
+test("stable-range matches a range-shaped option (0 < K < 8)", () => {
+  const opts = ["1. K >= 8", "2. -1 < K < 6", "3. 0 < K < 8", "4. K > -10"]
+    .map((t) => ({ raw_text: t, flag: "no_match" }));
+  applyStableRangeMatch("solve_stable_K_range", [0.0, 8.0], opts);
+  assert.deepEqual(opts.map((o) => o.flag), ["no_match", "no_match", "match", "no_match"]);
+});
+
+test("stable-range range option distinguishes near distractors (0<K<90 vs 0<K<98)", () => {
+  const opts = ["0<K<90", "0<K<14", "0<K<98", "K>0"]
+    .map((t) => ({ raw_text: t, flag: "no_match" }));
+  applyStableRangeMatch("solve_stable_K_range", [0.0, 90.0], opts);
+  assert.deepEqual(opts.map((o) => o.flag), ["match", "no_match", "no_match", "no_match"]);
+});
+
+test("stable-range still matches a single in-range candidate (K_P = 50)", () => {
+  const opts = ["a) K_P = 50", "b) 0.0222 < K_P < 1", "c) K_P = 0.0222"]
+    .map((t) => ({ raw_text: t, flag: "no_match" }));
+  applyStableRangeMatch("solve_stable_K_range", [45.0, Infinity], opts);
+  assert.equal(opts[0].flag, "match");
+  assert.equal(opts[1].flag, "no_match");
+});

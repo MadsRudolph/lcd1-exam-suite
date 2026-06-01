@@ -50,6 +50,13 @@ const fmt = (x) => {
   return String(Number(x.toPrecision(6)));
 };
 const plain = (x) => (typeof x === "number" ? (Number.isFinite(x) ? String(Number(x.toPrecision(6))) : (x > 0 ? "∞" : "-∞")) : String(x));
+// Snap floating-point dust (a repeated/origin root computes as e.g. 1.7e-44) to 0
+// and format a complex root cleanly: "0", "-2", or "-0.1+0.3j".
+const snap = (x) => (Math.abs(x) < 1e-9 ? 0 : x);
+const cplxStr = (p) => {
+  const re = snap(p.re), im = snap(p.im);
+  return im === 0 ? plain(re) : `${plain(re)}${im >= 0 ? "+" : "-"}${plain(Math.abs(im))}j`;
+};
 
 function tfLatex(num, den) {
   const term = (coeffs) => {
@@ -160,6 +167,52 @@ export function smartPaste(textIn) {
       : "No transfer function or ODE found in the pasted text — this question probably refers to a figure or is conceptual. Read any values off the plot and type G(s) above, or use the calculators below.";
   }
   return out;
+}
+
+// Numeric first-order linearization ẋ = f(x,u) about an operating point, for the
+// f the symbolic core rejects (sin, cos, tan, √, exp, log). Central differences
+// give A = ∂f/∂x and B = ∂f/∂u at the point; the small-signal TF is B/(s − A).
+// Only works when the operating point fixes every constant to a number (any
+// leftover literal parameter is reported, since a number can't be computed).
+const MATH_FUNCS = new Set(["sin", "cos", "tan", "asin", "acos", "atan", "sqrt", "exp", "log", "ln", "abs", "sinh", "cosh", "tanh", "pi", "e"]);
+function compileExpr(fStr) {
+  const expr = String(fStr)
+    .replace(/\*\*/g, "^").replace(/\^/g, "**")          // normalise power operator
+    .replace(/\bln\b/g, "log")
+    .replace(/\b(sin|cos|tan|asin|acos|atan|sqrt|exp|log|abs|sinh|cosh|tanh)\b/g, "Math.$1")
+    .replace(/\bpi\b/gi, "Math.PI")
+    .replace(/(?<![\w.])e(?![\w])/g, "Math.E");
+  return (scope) => {
+    const names = Object.keys(scope);
+    // eslint-disable-next-line no-new-func
+    return Function(...names, `"use strict"; return (${expr});`)(...names.map((n) => scope[n]));
+  };
+}
+function numericLinearize(fStr, stateVar, inputVar, point) {
+  const scope = {};
+  for (const k of Object.keys(point)) {
+    const v = Number(point[k]);
+    if (!Number.isNaN(v)) scope[k] = v;
+  }
+  if (!(stateVar in scope)) return { ok: false, note: `Give a numeric operating-point value for the state ${stateVar} (e.g. ${stateVar}=2).` };
+  if (!(inputVar in scope)) return { ok: false, note: `Give a numeric operating-point value for the input ${inputVar} (e.g. ${inputVar}=0).` };
+  const ids = new Set((String(fStr).match(/[A-Za-z_]\w*/g) || []));
+  for (const id of ids) {
+    if (MATH_FUNCS.has(id) || MATH_FUNCS.has(id.toLowerCase())) continue;
+    if (id in scope) continue;
+    return { ok: false, note: `Linearizing a sin/√/exp expression needs every constant as a number — '${id}' has no value. Substitute the constants and the operating point as numbers, then retry.` };
+  }
+  let f;
+  try { f = compileExpr(fStr); } catch (e) { return { ok: false, note: `Could not read the expression: ${e.message}` }; }
+  const at = (over, h) => f({ ...scope, [over]: scope[over] + h });
+  const deriv = (over) => {
+    const h = Math.max(1e-6, Math.abs(scope[over]) * 1e-6);
+    return (at(over, h) - at(over, -h)) / (2 * h);
+  };
+  let A, B;
+  try { A = deriv(stateVar); B = deriv(inputVar); } catch (e) { return { ok: false, note: `Could not evaluate the derivative at the operating point: ${e.message}` }; }
+  if (!Number.isFinite(A) || !Number.isFinite(B)) return { ok: false, note: "The derivative is not finite at this operating point (check the values are inside the function's domain)." };
+  return { ok: true, A, B };
 }
 
 // ---- core solve ----
@@ -273,10 +326,14 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
       case "characterize": {
         out.tf = inp.G;
         const c = characterizeTf(parseTf(inp.G));
-        const polesStr = c.poles.map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ");
-        out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)],
+        const polesStr = c.poles.map(cplxStr).join(", ");
+        out.summary = [["poles", polesStr], ["DC gain", plain(c.dc_gain)]];
+        if (typeof c.dc_gain === "number" && c.dc_gain > 0) {
+          out.summary.push(["DC gain (dB)", plain(20 * Math.log10(c.dc_gain))]);
+        }
+        out.summary.push(
           ["y(0⁺) step (init. value)", plain(c.initial_value)],
-          ["y(∞) step (final value)", plain(c.dc_gain)]];
+          ["y(∞) step (final value)", plain(c.dc_gain)]);
         if (c.is_second_order) {
           out.latex = `\\zeta=${fmt(c.zeta)},\\ \\omega_n=${fmt(c.omega_n)}`;
           out.summary.push(["ζ", plain(c.zeta)], ["ω_n", plain(c.omega_n)]);
@@ -335,15 +392,28 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         break;
       }
       case "linearize_tf": {
-        const G = linearizeFirstOrder({
-          f: inp.f,
-          stateVar: (inp.stateVar || "x").trim(),
-          inputVar: (inp.inputVar || "u").trim(),
-          point: parsePoint(inp.point),
-        });
-        const rendered = renderSymTF(G);
-        out.latex = rendered.toKaTeX();
-        out.summary = [["G(s)", rendered.toFormulaString()]];
+        const stateVar = (inp.stateVar || "x").trim();
+        const inputVar = (inp.inputVar || "u").trim();
+        const point = parsePoint(inp.point);
+        try {
+          // Exact symbolic path: works for polynomial / rational f.
+          const G = linearizeFirstOrder({ f: inp.f, stateVar, inputVar, point });
+          const rendered = renderSymTF(G);
+          out.latex = rendered.toKaTeX();
+          out.summary = [["G(s)", rendered.toFormulaString()]];
+        } catch (symErr) {
+          // f has a transcendental term (sin, √, exp, …) the symbolic core can't
+          // differentiate. Fall back to a numeric first-order linearization, which
+          // works whenever the operating point fixes every constant to a number.
+          const r = numericLinearize(inp.f, stateVar, inputVar, point);
+          if (!r.ok) { out.ok = false; out.note = r.note || symErr.message; break; }
+          out.latex = `G(s) = ${tfLatex([r.B], [1, -r.A])}`;
+          out.summary = [
+            ["G(s)", formatTf([r.B], [1, -r.A])],
+            [`∂f/∂${stateVar} (pole = ${plain(r.A)})`, plain(r.A)],
+            [`∂f/∂${inputVar} (gain)`, plain(r.B)],
+          ];
+        }
         break;
       }
       case "symbolic_equiv": {
@@ -443,7 +513,7 @@ function piLead(out, inp, optionsText, matchKey) {
 // ---- result + matching helpers ----
 function tfResult(out, G) {
   out.latex = tfLatex(G.num, G.den);
-  out.summary = [["poles", G.poles().map((p) => `${plain(p.re)}${p.im >= 0 ? "+" : "-"}${plain(Math.abs(p.im))}j`).join(", ")]];
+  out.summary = [["poles", G.poles().map(cplxStr).join(", ")]];
   try { out.summary.push(["DC gain", plain(G.dcGain())]); } catch { /* integrator */ }
 }
 function noMatchNote(out) {

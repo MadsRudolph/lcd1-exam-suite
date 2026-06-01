@@ -6,12 +6,47 @@ import { parseTf } from "./numeric/parse.js";
 
 const DB_SUFFIX = /^\s*(.+?)\s*dB\s*$/i;
 
-/** Parse '5', '-7.9588 dB', '1/2', 'pi/4' to a float; throws on junk. */
+// Strip a leading multiple-choice enumerator: "1.", "2)", "(3)", "[4]", "a.",
+// "b)", "(c)". Digit markers must be followed by ")"/":"/"]" or a "." + space, so
+// a decimal answer like "0.4" is never mistaken for an enumerator.
+function stripEnumerator(s) {
+  const letter = s.replace(/^\s*[(\[]?\s*[a-eA-E]\s*[).:\-\]]\s*/, "");
+  if (letter !== s) return letter;
+  return s.replace(/^\s*[(\[]?\s*\d{1,2}\s*(?:[):\]]\s*|\.\s+)/, "");
+}
+
+// Strip a leading quantity label: "K =", "GM =", "K_P=", "α =", "γ_M:", "ζ ≈".
+function stripLabel(s) {
+  return s.replace(/^\s*[A-Za-zΑ-Ωα-ω][A-Za-zΑ-Ωα-ω0-9_]*\s*[=≈:]\s*/, "");
+}
+
+// Pull the first numeric token (with an optional dB / unit) out of any leftover
+// text, e.g. "GM 7.6 dB, PM 23" → 7.6 dB. Last resort after the strict parse.
+function firstNumber(s) {
+  const m = /(-?\d+(?:\.\d+)?(?:[eE][+-]?\d+)?)\s*(dB)?/i.exec(s);
+  if (!m) throw new Error(`no number in: ${s}`);
+  return m[2] ? 10 ** (Number(m[1]) / 20) : Number(m[1]);
+}
+
+const UNIT_SUFFIX = /\s*(?:rad\/s|rad|deg|°|%|hz|sec|s)\s*$/i;
+
+/**
+ * Parse a multiple-choice option to the number it represents. Tolerant of the
+ * way exam options are actually written: a leading enumerator ("1.", "a)"), a
+ * quantity label ("K =", "GM ="), a trailing unit ("dB", "rad/s", "°", "%"), and
+ * plain fractions / products. '5', 'b) K_P = 8.4', '-7.9588 dB', '4.3 %',
+ * '1/2', 'pi/4' all parse. Throws only on genuinely number-free text.
+ */
 export function parseNumber(rawIn) {
-  const raw = String(rawIn).trim();
+  let raw = stripLabel(stripEnumerator(String(rawIn).trim())).trim();
   const m = DB_SUFFIX.exec(raw);
-  if (m) return 10 ** (evalNumeric(m[1]) / 20);
-  return evalNumeric(raw);
+  if (m) {
+    try { return 10 ** (evalNumeric(m[1]) / 20); } catch { /* fall through */ }
+  }
+  try { return evalNumeric(raw); } catch { /* try unit-stripped / first-token */ }
+  const noUnit = raw.replace(UNIT_SUFFIX, "").trim();
+  try { return evalNumeric(noUnit); } catch { /* fall through */ }
+  return firstNumber(raw);
 }
 
 function evalNumeric(s) {
@@ -141,21 +176,58 @@ export function matchOptions(result, optionsText, matchKey = null) {
   }
 }
 
-/** Flag options inside a stable-K interval (low, high). Mutates + returns options. */
+const INF = (x) => (/-?\s*(?:inf\w*|∞)/i.test(x) ? (/-/.test(x) ? -Infinity : Infinity) : Number(x));
+
+// Parse a stability-range option into an interval [lo, hi], or null if the option
+// is a single value (handled by membership instead). Recognises "(a, b)", "[a,b]",
+// "a < K < b", "a ≤ K ≤ b", "0<K<8", "K > a", "K ≥ a", "K < b".
+export function parseInterval(textIn) {
+  const t = stripEnumerator(String(textIn).trim()).replace(/\s+/g, " ").trim();
+  let m = /^[A-Za-zΑ-Ωα-ω_]*\s*[∈]?\s*[(\[]\s*(-?\d+(?:\.\d+)?|-?\s*(?:inf\w*|∞))\s*,\s*(\d+(?:\.\d+)?|\s*(?:inf\w*|∞))\s*[)\]]$/i.exec(t);
+  if (m) return [INF(m[1]), INF(m[2])];
+  m = /(-?\d+(?:\.\d+)?)\s*<=?\s*[A-Za-zΑ-Ωα-ω_]+\s*<=?\s*(-?\d+(?:\.\d+)?)/.exec(t);
+  if (m) return [Number(m[1]), Number(m[2])];
+  m = /[A-Za-zΑ-Ωα-ω_]+\s*(?:>=?|≥)\s*(-?\d+(?:\.\d+)?)/.exec(t);
+  if (m) return [Number(m[1]), Infinity];
+  m = /[A-Za-zΑ-Ωα-ω_]+\s*(?:<=?|≤)\s*(-?\d+(?:\.\d+)?)/.exec(t);
+  if (m) return [-Infinity, Number(m[1])];
+  return null;
+}
+
+const fmtB = (x) => (x === Infinity ? "∞" : x === -Infinity ? "-∞" : String(x));
+const sameBound = (a, b) => (a === b) || (Number.isFinite(a) && Number.isFinite(b) && Math.abs(a - b) <= 0.03 * Math.max(1, Math.abs(b)));
+
+/**
+ * Flag the option(s) consistent with a computed stable-K interval (low, high).
+ * Two option shapes occur in exams and both are handled: a range like "0 < K < 8"
+ * (matched when its bounds equal the computed interval) and a single candidate
+ * gain like "K_P = 50" (matched when it falls inside the interval).
+ * Mutates + returns options.
+ */
 export function applyStableRangeMatch(solverFunction, raw, options) {
   if (solverFunction !== "solve_stable_K_range") return options;
   if (!(Array.isArray(raw) && raw.length === 2)) return options;
   const [low, high] = [Number(raw[0]), Number(raw[1])];
   for (const opt of options) {
+    const iv = parseInterval(opt.raw_text);
+    if (iv) {
+      const ok = sameBound(iv[0], low) && sameBound(iv[1], high);
+      opt.flag = ok ? "match" : "no_match";
+      opt.note = ok
+        ? `matches stable range (${fmtB(low)}, ${fmtB(high)})`
+        : `range (${fmtB(iv[0])}, ${fmtB(iv[1])}) ≠ (${fmtB(low)}, ${fmtB(high)})`;
+      continue;
+    }
     let val;
     try {
       val = parseNumber(opt.raw_text);
     } catch {
+      opt.flag = "unparseable";
       continue;
     }
     const inside = low < val && val < high;
     opt.flag = inside ? "match" : "no_match";
-    opt.note = (inside ? "inside" : "outside") + ` stable range (${low}, ${high})`;
+    opt.note = (inside ? "inside" : "outside") + ` stable range (${fmtB(low)}, ${fmtB(high)})`;
   }
   return options;
 }

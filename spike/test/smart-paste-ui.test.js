@@ -99,6 +99,14 @@ test("extracts the plant across the common analysis question types", () => {
   }
 });
 
+test("Smart Paste extracts a TF written with a unicode superscript (s²)", () => {
+  const r = smartPaste("What is the DC gain in dB of G(s) = 12/(s²+5s+6)?\n1. 2\n2. 12\n3. 6");
+  assert.ok(r.tf, "should extract a TF from s²+5s+6");
+  const a = analyzeNumeric(r.tf);
+  assert.ok(Math.abs(a.dcGain - 2) < 1e-6, `DC gain 2, got ${a.dcGain}`);
+  assert.ok(Math.abs(a.dcGain_dB - 6.0206) < 1e-2, `DC gain ≈ 6 dB, got ${a.dcGain_dB}`);
+});
+
 test("phase margin is reported in (-180, 180] (a type-2 plant reads negative)", () => {
   const a = analyzeNumeric("5*(s+4)/(s**2*(s+1)*(s+20))");
   assert.ok(a.margins.PM_deg > -180 && a.margins.PM_deg <= 180, `PM in range, got ${a.margins.PM_deg}`);
