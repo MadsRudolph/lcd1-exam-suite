@@ -11,15 +11,23 @@ A floating mode switcher toggles between the two; everything ships in a single s
 
 ## Run it
 
+Works on **Windows, macOS and Linux** — it's an Electron app, nothing platform-specific.
+You need [Node.js](https://nodejs.org/) and git installed.
+
 ```bash
 npm install        # one-time (Electron, esbuild, KaTeX)
 npm run build      # bundle app.js -> bundle.js
 npm start          # launch the desktop app
 ```
 
-Or double-click `Launch-Desktop-App.bat` (Windows). In the app, use the top switcher:
-**◧ Block Diagram** to draw/reduce diagrams, **∑ LCD1 Solver** to paste an exam question and get the
-routed solution with the matching multiple-choice option flagged.
+Or skip the terminal and double-click a launcher:
+
+- **Windows** — `Double-Click-To-Run.bat` (installs deps + builds on first run) or `Launch-Desktop-App.bat`.
+- **macOS** — `Launch-Mac.command` (same first-run setup). If double-clicking is blocked, run
+  `chmod +x Launch-Mac.command` once, or right-click → Open.
+
+In the app, use the top switcher: **◧ Block Diagram** to draw/reduce diagrams, **∑ LCD1 Solver** to
+paste an exam question and get the routed solution with the matching multiple-choice option flagged.
 
 ## Verify the math
 

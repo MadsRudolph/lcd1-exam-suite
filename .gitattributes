@@ -1,0 +1,5 @@
+# Shell launchers must stay LF — a CRLF shebang breaks them on macOS/Linux
+# ("bad interpreter: /bin/bash^M"). Windows .bat files want CRLF.
+*.command text eol=lf
+*.sh      text eol=lf
+*.bat     text eol=crlf
