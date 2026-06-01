@@ -9,6 +9,9 @@ import { solveKPFromEss, solveEssTable } from "./spike/solvers/p5.js";
 import { solvePiLead, solvePForPM, solvePiLeadDesign, solveLagBeta } from "./spike/solvers/p6.js";
 import { solveNestedEss, pickFeedforwardForm } from "./spike/solvers/p7.js";
 import { bandwidth, dominantSettling, analyzeStability, characterizeTf } from "./spike/solvers/analysis.js";
+import { evalFreqPoint, findOmegaForMagDb, findOmegaForPhaseDeg } from "./spike/solvers/freqpoint.js";
+import { secondOrderFromReadoff } from "./spike/solvers/plotreadoff.js";
+import { valueTheorems } from "./spike/solvers/valuetheorems.js";
 import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { solveOdeToTf, solveStateSpaceToTf } from "./spike/solvers/p1.js";
 import { composeTfFromBode } from "./spike/solvers/p2.js";
@@ -354,6 +357,54 @@ export function runSolver(fn, inp = {}, optionsText = "", matchKey = null) {
         out.tf = inp.G;            // string echo for contextual buttons
         out.plotData = buildPlotData(G);
         out.summary = [["poles", G.poles().map((p) => `${p.re.toPrecision(4)}${p.im >= 0 ? "+" : ""}${p.im.toPrecision(4)}j`).join(", ")]];
+        break;
+      }
+      case "evaluate_gjw": {
+        const G = parseTf(inp.G);
+        out.tf = inp.G;
+        const rows = [];
+        const w = fnum(inp.omega);
+        if (w != null) {
+          const p = evalFreqPoint(G, w);
+          out.latex = `|G(j${fmt(w)})| = ${fmt(p.mag_dB)}\\text{ dB},\\ \\angle G = ${fmt(p.phase_deg)}^\\circ`;
+          rows.push(
+            ["|G(jω)| (dB)", plain(p.mag_dB)], ["|G(jω)| (linear)", plain(p.mag)],
+            ["∠G(jω) (°)", plain(p.phase_deg)],
+            ["G(jω)", `${plain(p.re)} ${p.im >= 0 ? "+" : "-"} ${plain(Math.abs(p.im))}j`],
+          );
+        }
+        const mTarget = fnum(inp.target_mag_dB);
+        if (mTarget != null) {
+          const wm = findOmegaForMagDb(G, mTarget);
+          rows.push([`ω where |G| = ${plain(mTarget)} dB`, Number.isFinite(wm) ? plain(wm) : "—"]);
+        }
+        const pTarget = fnum(inp.target_phase_deg);
+        if (pTarget != null) {
+          const wp = findOmegaForPhaseDeg(G, pTarget);
+          rows.push([`ω where ∠G = ${plain(pTarget)}°`, Number.isFinite(wp) ? plain(wp) : "—"]);
+        }
+        if (!rows.length) { out.ok = false; out.note = "Enter a frequency ω, or a target magnitude/phase to solve for ω."; break; }
+        out.summary = rows;
+        break;
+      }
+      case "second_order_from_plot": {
+        const r = secondOrderFromReadoff(inp);
+        if (!Object.keys(r).length) { out.ok = false; out.note = "Enter the steady & peak values (for ζ) and/or a period or peak time (for ω)."; break; }
+        out.latex = [r.zeta != null ? `\\zeta=${fmt(r.zeta)}` : null, r.omega_n != null ? `\\omega_n=${fmt(r.omega_n)}` : null].filter(Boolean).join(",\\ ") || null;
+        out.summary = [];
+        if (r.Mp != null) out.summary.push(["Mp", plain(r.Mp)], ["Mp (%)", plain(r.Mp_pct)]);
+        if (r.zeta != null) out.summary.push(["ζ", plain(r.zeta)]);
+        if (r.omega_d != null) out.summary.push(["ω_d", plain(r.omega_d)]);
+        if (r.omega_n != null) out.summary.push(["ω_n", plain(r.omega_n)]);
+        out.options = optionsText ? matchOptions({ value: r.omega_n ?? r.zeta ?? r.Mp, kind: "NUMBER" }, optionsText) : null;
+        break;
+      }
+      case "value_theorems": {
+        const F = parseTf(inp.F);
+        const r = valueTheorems(F.num, F.den, inp.input || "none");
+        out.latex = `y(0^+) = ${fmt(r.initial_value)},\\ y(\\infty) = ${fmt(r.final_value)}`;
+        out.summary = [["y(0⁺) — initial value", plain(r.initial_value)], ["y(∞) — final value", plain(r.final_value)]];
+        out.options = optionsText ? matchOptions({ value: r.final_value, kind: "NUMBER" }, optionsText) : null;
         break;
       }
       default:

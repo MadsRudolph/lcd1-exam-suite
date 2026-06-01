@@ -235,6 +235,38 @@ export const FORMS = [
     ],
     explanation: "Gains for nested control loops to hit an ess target.",
   },
+  // ---- New analysis tools ----
+  {
+    pattern: "Analysis", title: "Evaluate G(jω)", variant: "|G| & ∠G at a frequency", fn: "evaluate_gjw", group: "design",
+    resultKind: "INFO",
+    fields: [
+      { name: "G", label: "G(s)", kind: "tf", placeholder: "1/(s*(s+2.1))", tooltip: "Open-loop TF — reused from the system box." },
+      { name: "omega", label: "ω (rad/s)", kind: "str", placeholder: "6.4", tooltip: "Frequency to evaluate at — e.g. the crossover ω_c when reading φ_G for a controller design." },
+      { name: "target_mag_dB", label: "…or find ω where |G| = (dB)", kind: "str", placeholder: "0", tooltip: "Optional: solve for the frequency at this magnitude (0 dB = gain crossover). Leave blank to skip." },
+      { name: "target_phase_deg", label: "…or find ω where ∠G = (°)", kind: "str", placeholder: "-180", tooltip: "Optional: solve for the frequency at this phase (-180° = phase crossover). Leave blank to skip." },
+    ],
+    explanation: "Read |G(jω)| (dB and linear) and ∠G(jω) at any frequency — the hand-calculation behind finding K_P or checking a crossover. Optionally solve for the ω at a target magnitude or phase.",
+  },
+  {
+    pattern: "P4", title: "From a step-response plot", variant: "read-offs → ζ, ω_n, ω_d", fn: "second_order_from_plot", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "y_steady", label: "steady-state value (off the plot)", kind: "str", placeholder: "2.0", tooltip: "Final settled value of the step response. With the peak it gives the overshoot → ζ." },
+      { name: "y_peak", label: "peak value (off the plot)", kind: "str", placeholder: "2.9", tooltip: "Maximum value of the step response." },
+      { name: "period", label: "oscillation period T (s)", kind: "str", placeholder: "0.21", tooltip: "Period of the damped oscillation read off the time axis. ω_d = 2π/T." },
+      { name: "t_p", label: "peak time t_p (s) — alt. to period", kind: "str", placeholder: "1.77", tooltip: "Time of the first peak. t_p = π/ω_d. Use this OR the period." },
+    ],
+    explanation: "Turn step-response read-offs into second-order parameters: peak & steady values → overshoot → ζ; period or peak time → ω_d; then ω_n = ω_d/√(1−ζ²).",
+  },
+  {
+    pattern: "Analysis", title: "Initial / final value", variant: "IVT & FVT on F(s)", fn: "value_theorems", group: "calc",
+    resultKind: "INFO",
+    fields: [
+      { name: "F", label: "F(s) — the s-domain signal (E(s), Y(s)…)", kind: "tf", placeholder: "4*(s+50)/(s*(s**2+30*s+200))", tooltip: "The Laplace-domain expression to take limits of. If it is a plant that still needs an input, choose one below." },
+      { name: "input", label: "apply input", kind: "dropdown", default: "none", options: ["none", "step", "ramp", "impulse"], tooltip: "Multiply F by the input: step = 1/s, ramp = 1/s², impulse = 1. Use 'none' if F is already the full signal." },
+    ],
+    explanation: "Initial-value theorem y(0⁺)=lim_{s→∞} sF(s) and final-value theorem y(∞)=lim_{s→0} sF(s). FVT is the quick route to a steady-state value or error (e.g. lim_{s→0} sE(s)).",
+  },
 ];
 
 export const formByFn = (fn) => FORMS.find((f) => f.fn === fn) || null;
