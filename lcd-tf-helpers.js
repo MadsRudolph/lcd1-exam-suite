@@ -63,39 +63,31 @@ export function toMatlabExpr(src) {
 // self-contained and recomputes everything from G.
 const PLOT_BLOCK = {
   Step: [
-    "% Step response with transient metrics",
+    "% Step response; transient metrics shown as a legend",
     "step(G);",
     "grid on;",
-    "% overshoot, peak time and settling time (matches the solver's read-outs)",
     "S = stepinfo(G);",
-    "fprintf('Overshoot  = %.4g %%\\n', S.Overshoot);",
-    "fprintf('Peak time  = %.4g s\\n', S.PeakTime);",
-    "fprintf('Settling t = %.4g s (2%%)\\n', S.SettlingTime);",
+    "legend(sprintf('overshoot %.3g %%,  t_p %.3g s,  t_s %.3g s (2%%)', S.Overshoot, S.PeakTime, S.SettlingTime), 'Location', 'southeast');",
   ],
   Bode: [
-    "% Bode plot drawn with gain/phase margins and crossover frequencies marked",
+    "% Bode plot; gain/phase margins, crossovers and bandwidth shown as a legend",
     "margin(G);",
     "grid on;",
-    "% numeric margins, crossovers and bandwidth",
     "[Gm, Pm, Wpc, Wgc] = margin(G);",
-    "fprintf('GM = %.4g dB at w_pi = %.4g rad/s (phase crossover)\\n', 20*log10(Gm), Wpc);",
-    "fprintf('PM = %.4g deg at w_c  = %.4g rad/s (gain crossover)\\n', Pm, Wgc);",
-    "fprintf('Bandwidth  = %.4g rad/s\\n', bandwidth(G));",
+    "legend(sprintf('GM = %.3g dB,  PM = %.3g deg,  \\\\omega_c = %.3g,  \\\\omega_\\\\pi = %.3g,  BW = %.3g rad/s', 20*log10(Gm), Pm, Wgc, Wpc, bandwidth(G)), 'Location', 'southwest');",
   ],
   Nyquist: [
-    "% Nyquist plot; the -1 point sets the gain/phase margins",
+    "% Nyquist plot; the -1 point sets the margins, shown as a legend",
     "nyquist(G);",
     "grid on;",
     "[Gm, Pm] = margin(G);",
-    "fprintf('GM = %.4g dB, PM = %.4g deg\\n', 20*log10(Gm), Pm);",
+    "legend(sprintf('GM = %.3g dB,  PM = %.3g deg', 20*log10(Gm), Pm), 'Location', 'best');",
   ],
   "Pole-Zero": [
     "% Pole-zero map with the damping / natural-frequency grid",
     "pzmap(G);",
     "sgrid;",
-    "% poles (stable when every real part is < 0) and zeros",
-    "disp('poles ='); disp(pole(G));",
-    "disp('zeros ='); disp(zero(G));",
+    "legend(sprintf('%d poles, %d zeros  (stable if every pole has Re < 0)', length(pole(G)), length(zero(G))), 'Location', 'best');",
   ],
 };
 

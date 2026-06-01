@@ -39,6 +39,13 @@ test("matlabForPlot builds a numeric Bode snippet with margins and crossovers", 
   assert.match(code, /\[Gm, Pm, Wpc, Wgc\] = margin\(G\);/);
   assert.match(code, /bandwidth\(G\)/);
   assert.match(code, /grid on;/);
+  assert.match(code, /legend\(sprintf\(/);     // margins/crossovers shown as a legend
+});
+
+test("matlabForPlot shows the plot metrics as a legend on every tab", () => {
+  for (const tab of ["Step", "Bode", "Nyquist", "Pole-Zero"]) {
+    assert.match(matlabForPlot("12/((s+2)*(s+3))", tab), /legend\(/, `${tab} has a legend`);
+  }
 });
 
 test("matlabForPlot converts ** to ^ and maps each tab to its analysis block", () => {
