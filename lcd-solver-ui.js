@@ -14,6 +14,7 @@ import { buildPlotData } from "./spike/solvers/plotdata.js";
 import { parseTf } from "./spike/numeric/parse.js";
 import { attachHover } from "./plot-interact.js";
 import { matchOptions } from "./spike/match.js";
+import { buildBodeLab } from "./bode-lab.js";
 
 const VERSION = "v1.2.1";
 
@@ -157,9 +158,22 @@ function analyzeAndRender() {
 }
 
 function renderPlotsInto(parent, src) {
-  let pd;
-  try { pd = buildPlotData(parseTf(src)); } catch { return; }
-  parent.append(sectionLabel("Plots · overlay the exam figure to verify"));
+  let pd, tf;
+  try { tf = parseTf(src); pd = buildPlotData(tf); } catch { return; }
+  const head = el("div", { style: "display:flex;justify-content:space-between;align-items:center;gap:10px;flex-wrap:wrap;" });
+  head.append(sectionLabel("Plots · overlay the exam figure to verify"));
+  // Solver → Bode Lab bridge: factor this G(s) onto the s-plane to tweak it by hand.
+  const labBtn = el("button", { title: "open this G(s) in the Bode Lab — drag its poles/zeros",
+    style: `background:rgba(99,102,241,0.15);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:5px 10px;font:600 11px 'Outfit';cursor:pointer;` },
+    "🎛 Edit in Bode Lab");
+  labBtn.onclick = () => {
+    if (!state.bodeLab) return;
+    const K = tf.num[0] / tf.den[0]; // leading-coeff ratio = the gain on the monic root products
+    state.bodeLab.setSystem(tf.poles(), tf.zeros(), Number.isFinite(K) ? K : 1);
+    state.setMode("lab");
+  };
+  head.append(labBtn);
+  parent.append(head);
   parent.append(renderPlotPanel(pd, "Bode", src));
 }
 
@@ -598,6 +612,18 @@ function buildGuide() {
   s5._body.append(r5);
   inner.append(s5);
 
+  // 5b — Bode Lab
+  const s5b = section("🎛 Bode Lab — build intuition by placing poles & zeros", "Drag poles/zeros on the s-plane and watch the Bode plot respond live");
+  s5b._body.append(
+    p("Left-click the s-plane to drop a <b>pole</b> (×), right-click for a <b>zero</b> (○), drag to move, double-click to delete. The Bode magnitude and phase redraw instantly."),
+    p("Each pole bends the magnitude <b>−20 dB/decade</b> and adds <b>−90°</b> of phase past its break frequency ω = |p|; each zero does the opposite. A pole at the origin is a pure integrator. Presets load the classic shapes (LPF, HPF, Notch, Lead, Lag, PI, …)."),
+    p("The Bode plot is <b>live and interactive just like the Solver's</b> — hover to read ω, |G| and ∠G, and it marks the gain crossover ω_c, phase crossover ω_π, GM, PM and bandwidth. Scale the loop gain <b>K</b> to slide ω_c."),
+    p("<b>It's bridged into the workflow:</b> send the placed G(s) to the Solver, pull a solved diagram straight onto the s-plane (🎛 Open in Bode Lab on the diagram hand-off), or open the Solver's current G(s) here to reshape it by hand (🎛 Edit in Bode Lab)."),
+  );
+  const r5b = chipRow(); r5b.append(chip("Open Bode Lab →", () => state.setMode("lab"), true));
+  s5b._body.append(r5b);
+  inner.append(s5b);
+
   // 6 — matching options
   const s6 = section("Matching the multiple-choice options", "Green ✓ confident, amber ≈ plausible — never a blind guess");
   s6._body.append(p("Paste the options into the matcher (or let Smart Paste fill them). The read-outs, the design goals and the calculators all compare their result to your options and flag the match. Magnitudes given in dB are matched in the right units, and an answer that is close to nothing stays unflagged rather than guessing."));
@@ -627,10 +653,10 @@ function init() {
     `background:var(--switcher-bg,rgba(15,23,42,0.85));backdrop-filter:blur(12px);border:1px solid ${BORDER};border-radius:999px;padding:4px;box-shadow:0 8px 24px rgba(0,0,0,0.4);` });
   const mkTab = (t) => el("button", { style:
     `border:none;background:transparent;color:${SUB};font:600 12px/1 'Outfit',sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;transition:all .15s;` }, t);
-  const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver"), tabGuide = mkTab("📖 Guide");
+  const tabBDR = mkTab("◧ Block Diagram"), tabLCD = mkTab("∑ LCD1 Solver"), tabLab = mkTab("🎛 Bode Lab"), tabGuide = mkTab("📖 Guide");
   const ver = el("span", { title: "App version (updates on Check for Updates)", style:
     `align-self:center;color:${SUB};font:600 10px 'Outfit',sans-serif;padding:0 8px 0 4px;opacity:.7;` }, VERSION);
-  bar.append(tabBDR, tabLCD, tabGuide, ver);
+  bar.append(tabBDR, tabLCD, tabLab, tabGuide, ver);
   document.body.appendChild(bar);
 
   // ---- panel ----
@@ -702,6 +728,7 @@ function init() {
   // up the new colours. exam-theme.js fires this after flipping the theme.
   window.addEventListener("lcd-theme-change", () => {
     if (state.sysBox && state.sysBox.value.trim()) analyzeAndRender();
+    if (state.bodeLab) state.bodeLab.redraw();
   });
 
   panel.append(left);
@@ -714,6 +741,20 @@ function init() {
   guide.append(buildGuide());
   document.body.appendChild(guide);
 
+  // ---- Bode Lab page (full-screen overlay, scrolls) ----
+  const lab = el("div", { id: "lcd-bode-lab", style:
+    "position:fixed;inset:0;z-index:900;display:none;overflow:auto;" +
+    "background:var(--bg-main,#0f172a);padding:70px 0 48px 0;" });
+  // Lab → Solver bridge: the lab hands back a parseable G(s); drop it in the
+  // system box and switch to the Solver. (state.setG / state.setMode are wired
+  // below in the behaviour section and exist by the time this fires.)
+  const labView = buildBodeLab({
+    onSendToSolver: (expr) => { state.setG(null, expr); state.setMode("lcd"); },
+  });
+  lab.append(labView.el);
+  document.body.appendChild(lab);
+  state.bodeLab = labView;
+
   // ---- behaviour ----
   const appContainer = document.querySelector(".app-container");
   const ACTIVE = "var(--switcher-active,linear-gradient(135deg,#3b82f6,#6366f1))";
@@ -722,15 +763,20 @@ function init() {
     const mode = m === true ? "lcd" : m === false ? "bdr" : m;
     panel.style.display = mode === "lcd" ? "grid" : "none";
     guide.style.display = mode === "guide" ? "block" : "none";
+    lab.style.display = mode === "lab" ? "block" : "none";
     if (appContainer) appContainer.style.visibility = mode === "bdr" ? "visible" : "hidden";
-    for (const [tab, name] of [[tabBDR, "bdr"], [tabLCD, "lcd"], [tabGuide, "guide"]]) {
+    for (const [tab, name] of [[tabBDR, "bdr"], [tabLCD, "lcd"], [tabLab, "lab"], [tabGuide, "guide"]]) {
       tab.style.background = mode === name ? ACTIVE : "transparent";
       tab.style.color = mode === name ? "#fff" : SUB;
     }
     if (mode === "guide") guide.scrollTop = 0;
+    // The lab's plots are baked SVG strings sized to the viewport; redraw on
+    // entry so they pick up the current theme colours and an up-to-date layout.
+    if (mode === "lab") { lab.scrollTop = 0; state.bodeLab && state.bodeLab.redraw(); }
   };
   tabBDR.onclick = () => setMode("bdr");
   tabLCD.onclick = () => setMode("lcd");
+  tabLab.onclick = () => setMode("lab");
   tabGuide.onclick = () => setMode("guide");
   setMode("bdr");
 
@@ -816,6 +862,46 @@ function routeNumeric(fn, symbolicTf) {
   });
 }
 
+// Parse a numeric G(s) string, factor it onto the s-plane and open the Bode Lab.
+function placeInLab(tfString) {
+  if (!state.bodeLab) return;
+  try {
+    const tf = parseTf(normalizeTfInput(tfString));
+    const K = tf.num[0] / tf.den[0];
+    state.bodeLab.setSystem(tf.poles(), tf.zeros(), Number.isFinite(K) ? K : 1);
+    state.setMode("lab");
+  } catch (e) {
+    alert(`Could not open in Bode Lab: ${e.message}`);
+  }
+}
+
+// Block Diagram → Bode Lab: like routeNumeric, but the destination is the lab.
+// If the diagram still has symbolic blocks, ask for values and re-reduce first
+// (the lab works on numeric roots).
+function routeToLab(symbolicTf) {
+  const { canvas, symbols } = state.bridgeCtx || { symbols: [] };
+  if (!symbols || symbols.length === 0) {
+    placeInLab(normalizeTf(symbolicTf));
+    state.chooser.style.display = "none";
+    return;
+  }
+  showSubstitutionModal(symbols, (values) => {
+    const numericNodes = canvas.nodes.map((n) => {
+      if (n.type !== "block" || !n.value) return n;
+      let v = String(n.value);
+      for (const sym of symbols) v = v.replace(new RegExp(`\\b${sym}\\b`, "g"), `(${values[sym]})`);
+      return { ...n, value: v };
+    });
+    try {
+      const num = solveBlockDiagram(numericNodes, canvas.connections);
+      placeInLab(normalizeTf(num.finalTransferFunction.toFormulaString()));
+      state.chooser.style.display = "none";
+    } catch (e) {
+      alert(`Could not reduce with those values: ${e.message}`);
+    }
+  });
+}
+
 function showSubstitutionModal(symbols, onConfirm) {
   const overlay = el("div", { style:
     "position:fixed;inset:0;z-index:1100;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.5);" });
@@ -883,7 +969,7 @@ function renderChooser(tf) {
   symChips.append(symChip, dashChip);
   c.append(symChips);
 
-  // Numeric path — the existing analysis solvers.
+  // Numeric path — the existing analysis solvers, plus the Bode Lab.
   c.append(el("div", { style: `color:${SUB};font:11px 'Inter';margin-top:6px;` }, "Or analyze it numerically:"));
   const chips = el("div", { style: "display:flex;flex-wrap:wrap;gap:6px;" });
   for (const ch of BRIDGE_CHOICES) {
@@ -893,6 +979,11 @@ function renderChooser(tf) {
     chip.onclick = () => routeNumeric(ch.fn, tf);
     chips.append(chip);
   }
+  const labChip = el("button", { title: "drop this G(s) onto the s-plane and shape it by hand", style:
+    `background:rgba(99,102,241,0.16);color:var(--accent-blue,#a5b4fc);border:1px solid rgba(99,102,241,0.4);border-radius:999px;padding:6px 11px;font:600 11px 'Outfit';cursor:pointer;` },
+    "🎛 Open in Bode Lab");
+  labChip.onclick = () => routeToLab(tf);
+  chips.append(labChip);
   c.append(chips);
 }
 
